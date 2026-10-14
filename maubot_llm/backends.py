@@ -82,7 +82,12 @@ class BasicOpenAIBackend(Backend):
     def __init__(self, cfg) -> None:
         super().__init__(cfg)
         self.base_url = cfg["base_url"]
-        self.authorization = cfg["authorization"]
+        # Use img_url if specified, otherwise fall back to base_url
+        self.img_base_url = cfg.get("img_url") or self.base_url
+        if cfg["api_key"] is not None:
+            self.authorization = f"Bearer {cfg['api_key']}"
+        else:
+            self.authorization = None
     
     async def fetch_models(self, http: ClientSession) -> List[str]:
         url = f"{self.base_url}/v1/models"
@@ -164,10 +169,41 @@ class BasicOpenAIBackend(Backend):
                 model=respbody.get("model", None)
             )
 
+    async def create_image_generation(self, http: ClientSession, prompt: str, model: Optional[str] = None) -> dict:
+        url = f"{self.img_base_url}/v1/images/generations"
+        reqbody = {"prompt": prompt}
+        if model is not None:
+            reqbody["model"] = model
+        headers = {}
+        if self.authorization is not None:
+            headers["Authorization"] = self.authorization
+        async with http.post(url, headers=headers, json=reqbody) as resp:
+            # TODO error handling
+            respbody = await resp.json()
+            return {"url": respbody["data"][0]["url"]}
+
+    async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> dict:
+        url = f"{self.img_base_url}/v1/images/edits"
+        # For multipart/form-data requests, we'll need to use aiohttp's FormData
+        from aiohttp import FormData
+        form = FormData()
+        form.add_field("prompt", prompt)
+        form.add_field("image", image)
+        if mask is not None:
+            form.add_field("mask", mask)
+        if model is not None:
+            form.add_field("model", model)
+        headers = {}
+        if self.authorization is not None:
+            headers["Authorization"] = self.authorization
+        async with http.post(url, headers=headers, data=form) as resp:
+            # TODO error handling
+            respbody = await resp.json()
+            return {"url": respbody["data"][0]["url"]}
+
 
 class OpenAIBackend(BasicOpenAIBackend):
     def __init__(self, cfg) -> None:
-        cfg["authorization"] = f"Bearer {cfg['api_key']}"
         if cfg.get("base_url") is None:
             cfg["base_url"] = "https://api.openai.com"
         super().__init__(cfg)

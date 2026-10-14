@@ -5,8 +5,8 @@ from maubot_llm.backends import BasicOpenAIBackend, OpenAIBackend, AnthropicBack
 
 
 BASIC_OPENAI_BASE_URL = os.getenv("TEST_BASIC_OPENAI_BASE_URL")
-BASIC_OPENAI_AUTHORIZATION = os.getenv("TEST_BASIC_OPENAI_AUTHORIZATION")
 BASIC_OPENAI_MODEL = os.getenv("TEST_BASIC_OPENAI_MODEL")
+BASIC_OPENAI_API_KEY = os.getenv("TEST_BASIC_OPENAI_API_KEY")
 OPENAI_API_KEY = os.getenv("TEST_OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("TEST_OPENAI_MODEL", "gpt-4-turbo")
 ANTHROPIC_API_KEY = os.getenv("TEST_ANTHROPIC_API_KEY")
@@ -18,7 +18,7 @@ class TestBackends(unittest.IsolatedAsyncioTestCase):
         if BASIC_OPENAI_BASE_URL is None:
             print("SKIPPING because TEST_BASIC_OPENAI_BASE_URL not configured")
             return
-        backend = BasicOpenAIBackend(dict(base_url=BASIC_OPENAI_BASE_URL, authorization=BASIC_OPENAI_AUTHORIZATION))
+        backend = BasicOpenAIBackend(dict(base_url=BASIC_OPENAI_BASE_URL, api_key=BASIC_OPENAI_API_KEY))
         async with aiohttp.ClientSession() as http:
             context = [{"role": "user", "content": "Please say the word 'hello' in lowercase and nothing else."}]
             system = "You are a helpful digital assistant."
