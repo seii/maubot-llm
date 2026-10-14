@@ -5,7 +5,11 @@ backends:
   local:
     type: basic_openai
     base_url: "http://localhost:1234"
-    authorization: null
+    # If you use a separate local OpenAI-compatible backend for images
+    #   (such as Stable Diffusion) then enter that URL here
+    img_url: null
+    # Ignore unless your local backend requires an API key
+    api_key: YOUR_KEY_HERE
     default_model: null
     default_system_prompt: "You are helpful digital assistant."
   openai:

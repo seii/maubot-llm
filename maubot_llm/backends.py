@@ -82,7 +82,10 @@ class BasicOpenAIBackend(Backend):
     def __init__(self, cfg) -> None:
         super().__init__(cfg)
         self.base_url = cfg["base_url"]
-        self.authorization = cfg["authorization"]
+        if cfg["api_key"] is not None:
+            self.authorization = f"Bearer {cfg['api_key']}"
+        else:
+            self.authorization = None
     
     async def fetch_models(self, http: ClientSession) -> List[str]:
         url = f"{self.base_url}/v1/models"
@@ -167,7 +170,6 @@ class BasicOpenAIBackend(Backend):
 
 class OpenAIBackend(BasicOpenAIBackend):
     def __init__(self, cfg) -> None:
-        cfg["authorization"] = f"Bearer {cfg['api_key']}"
         if cfg.get("base_url") is None:
             cfg["base_url"] = "https://api.openai.com"
         super().__init__(cfg)
