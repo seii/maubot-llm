@@ -56,6 +56,24 @@ class ResponsesInputTokens:
                 self.model == other.model)
 
 
+class CreateImageGenerations:
+    def __init__(self, url: str, model: Optional[str]) -> None:
+        self.url = url
+        self.model = model
+    
+    def __eq__(self, other) -> bool:
+        return self.url == other.url and self.model == other.model
+
+
+class CreateImageEdit:
+    def __init__(self, url: str, model: Optional[str]) -> None:
+        self.url = url
+        self.model = model
+    
+    def __eq__(self, other) -> bool:
+        return self.url == other.url and self.model == other.model
+
+
 class Backend:
     def __init__(self, cfg: dict) -> None:
         self.cfg = cfg
@@ -172,6 +190,8 @@ class BasicOpenAIBackend(Backend):
     async def create_image_generation(self, http: ClientSession, prompt: str, model: Optional[str] = None) -> dict:
         url = f"{self.img_base_url}/v1/images/generations"
         reqbody = {"prompt": prompt}
+
+        # Optional because Stable Diffusion can't currently specify a model on request
         if model is not None:
             reqbody["model"] = model
         headers = {}
@@ -180,7 +200,17 @@ class BasicOpenAIBackend(Backend):
         async with http.post(url, headers=headers, json=reqbody) as resp:
             # TODO error handling
             respbody = await resp.json()
-            return {"url": respbody["data"][0]["url"]}
+            
+            # respbody["data"] may contain multiple images, pull those out
+            b64_imgs = []
+            for body in respbody["data"]:
+                if body and body["b64_json"]:
+                    b64_imgs.append(body)
+
+            return CreateImageGenerations(
+                url=b64_imgs if b64_imgs[0] else "",
+                model=respbody.get("model", None)
+            )
 
     async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> dict:
         url = f"{self.img_base_url}/v1/images/edits"
@@ -191,6 +221,7 @@ class BasicOpenAIBackend(Backend):
         form.add_field("image", image)
         if mask is not None:
             form.add_field("mask", mask)
+        # Optional because Stable Diffusion can't currently specify a model on request
         if model is not None:
             form.add_field("model", model)
         headers = {}
@@ -199,7 +230,11 @@ class BasicOpenAIBackend(Backend):
         async with http.post(url, headers=headers, data=form) as resp:
             # TODO error handling
             respbody = await resp.json()
-            return {"url": respbody["data"][0]["url"]}
+            # Returns the entire `data` entry because it may contain multiple images
+            return CreateImageEdit(
+                url=respbody["data"] if respbody["data"] else "",
+                model=respbody.get("model", None)
+            )
 
 
 class OpenAIBackend(BasicOpenAIBackend):

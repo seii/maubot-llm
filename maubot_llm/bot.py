@@ -1,8 +1,17 @@
+import base64
+
 from maubot import Plugin
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 from maubot import Plugin, MessageEvent
 from maubot.handlers import command, event
-from mautrix.types import EventType, MessageEvent
+from mautrix.types import (
+    EventType,
+    ImageInfo,
+    ImageMessageEventContent,
+    MessageType,
+    RelatesTo,
+    InReplyTo,
+)
 from typing import Type
 from maubot_llm.backends import Backend, BasicOpenAIBackend, OpenAIBackend, AnthropicBackend
 from maubot_llm import db
@@ -168,6 +177,75 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
     
+    @event.on(EventType.ROOM_MESSAGE)
+    async def retrieve_generated_img(self) -> None:
+        if not self.is_allowed(evt.sender):
+            self.log.warn(f"stranger danger: sender={evt.sender}")
+            return
+        if evt.content.body.startswith("!"):
+            return
+        room = await self.get_room(evt.room_id)
+        await db.append_context(self.database, room.room_id, "user", evt.content.body)
+        await evt.mark_read()
+        # TODO: refresh the typing indicator if generation takes longer
+        # (or, alternatively, set a timeout for generation)
+        await self.client.set_typing(evt.room_id, 30000)
+
+        try:
+            backend = self.get_backend(room)
+            system = room.system_prompt or backend.default_system_prompt
+            if evt.content.body:
+                prompt = evt.content.body
+            else:
+                raise ValueError(
+                    "Prompt not specified by user"
+                )
+            
+            images = await backend.create_image_generation(self.http, evt.content.body)
+            if not images.url or not images.url[0] or not images.url[0].get("b64_json"):
+                raise ValueError(
+                    "Backend image API returned an empty or malformed response"
+                )
+
+            image_data = []
+            for image in images.url:
+                image_data.append(
+                    base64.b64decode(
+                        image["b64_json"],
+                        validate=True,
+                    )
+                )
+
+            if not image_data:
+                raise ValueError("Backend image API returned no images")
+            
+            # TODO Upload/return multiple images when appropriate
+            mxc_uri = await self.client.upload_media(
+                    image_data[0],
+                    mime_type="image/png",
+                    filename="image.png",
+                )
+            
+            content = ImageMessageEventContent(
+                msgtype=MessageType.IMAGE,
+                body="image.png",
+                url=mxc_uri,
+                info=ImageInfo(
+                    mimetype="image/png",
+                    size=len(image_data),
+                ),
+                relates_to=RelatesTo(
+                    in_reply_to=InReplyTo(
+                        event_id=evt.event_id,
+                    )
+                ),
+            )
+
+            await db.append_context(self.database, room.room_id, completion.message["role"], f"Backend generated image from prompt: {evt.content.body}")
+            await evt.respond(content)
+        finally:
+            await self.client.set_typing(evt.room_id, 0)
+
     @classmethod
     def get_db_upgrade_table(cls) -> UpgradeTable | None:
         return db.upgrade_table
