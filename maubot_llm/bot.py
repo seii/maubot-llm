@@ -116,7 +116,7 @@ class LlmBot(Plugin):
         items.append(f"- Context Message Count: {len(context)}")
         msg = "\n".join(items)
         
-        await evt.redact(react_id)
+        #await evt.redact(react_id)
         await evt.react(self.get_done_emoji())
         await evt.reply(msg)
     
@@ -201,7 +201,7 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
             model = room.model or backend.default_model
             completion = await backend.create_completion(self.http, max_tokens=max_tokens, prompt=prompt, model=model)
-            await evt.redact(react_id)
+            #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
             await evt.reply(completion["text"])
         finally:
@@ -234,7 +234,7 @@ class LlmBot(Plugin):
             context = await db.fetch_context(self.database, room.room_id)
             response = await backend.create_response(self.http, context=context, model=model)
             await db.append_context(self.database, room.room_id, response.text[0]["role"], response.text[0]["content"])
-            await evt.redact(react_id)
+            #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
             await evt.respond(response.text[0]["content"])
         finally:
@@ -261,7 +261,7 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
             model = room.model or backend.default_model
             response = await backend.get_response_input_tokens(self.http, input=prompt, model=model)
-            await evt.redact(react_id)
+            #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
             await evt.reply(f"I count that prompt as having {response.get('input_tokens')} tokens.")
         finally:
@@ -351,7 +351,7 @@ class LlmBot(Plugin):
             )
 
             await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {evt.content.body}")
-            await evt.redact(react_id)
+            #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
             await evt.reply(content)
         finally:
@@ -388,7 +388,7 @@ class LlmBot(Plugin):
             # TODO Implement
 
             await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
-            await evt.redact(react_id)
+            #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
             await evt.reply(content)
         finally:
