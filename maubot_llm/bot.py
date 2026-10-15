@@ -85,7 +85,7 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
         
-        react_id = await evt.react(get_wait_emoji())
+        react_id = await evt.react(self.get_wait_emoji())
 
         room = await self.get_room(evt.room_id)
         context = await db.fetch_context(self.database, room.room_id)
@@ -117,7 +117,7 @@ class LlmBot(Plugin):
         msg = "\n".join(items)
         
         await evt.redact(react_id)
-        await evt.react(get_done_emoji())
+        await evt.react(self.get_done_emoji())
         await evt.reply(msg)
     
     @llm_command.subcommand(help="Switch to a different backend for this room.")
@@ -134,7 +134,7 @@ class LlmBot(Plugin):
         room = await self.get_room(evt.room_id)
         room.backend = key
         await db.upsert_room(self.database, room)
-        await evt.react(get_done_emoji())
+        await evt.react(self.get_done_emoji())
     
     @llm_command.subcommand(help="Switch to a different model for this room. Use '-' to switch to the backend's default model.")
     @command.argument("model")
@@ -149,7 +149,7 @@ class LlmBot(Plugin):
         else:
             room.model = model
         await db.upsert_room(self.database, room)
-        await evt.react(get_done_emoji())
+        await evt.react(self.get_done_emoji())
     
     @llm_command.subcommand(help="Switch to a different system prompt for this room. Use '-' to switch to the backend's default system prompt.")
     @command.argument("prompt", pass_raw=True)
@@ -164,7 +164,7 @@ class LlmBot(Plugin):
         else:
             room.system_prompt = prompt
         await db.upsert_room(self.database, room)
-        await evt.react(get_done_emoji())
+        await evt.react(self.get_done_emoji())
 
     @llm_command.subcommand(help="Forget all context and treat subsequent messages as part of a new chat with the LLM.")
     async def clear(self, evt: MessageEvent) -> None:
@@ -172,7 +172,7 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
         await db.clear_context(self.database, evt.room_id)
-        await evt.react(get_done_emoji())
+        await evt.react(self.get_done_emoji())
 
     @llm_command.subcommand(help="Ask the LLM to predict the completion (once) of a given prompt")
     @command.argument("max_tokens")
@@ -192,7 +192,7 @@ class LlmBot(Plugin):
             self.log.warn("User did not provide prompt")
             return
 
-        react_id = await evt.react(get_wait_emoji())
+        react_id = await evt.react(self.get_wait_emoji())
         await evt.mark_read()
         # TODO: refresh the typing indicator if generation takes longer
         # (or, alternatively, set a timeout for generation)
@@ -202,7 +202,7 @@ class LlmBot(Plugin):
             model = room.model or backend.default_model
             completion = await backend.create_completion(self.http, max_tokens=max_tokens, prompt=prompt, model=model)
             await evt.redact(react_id)
-            await evt.react(get_done_emoji())
+            await evt.react(self.get_done_emoji())
             await evt.reply(completion["text"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
@@ -222,7 +222,7 @@ class LlmBot(Plugin):
             return
         room = await self.get_room(evt.room_id)
         await db.append_context(self.database, room.room_id, "user", prompt)
-        react_id = await evt.react(get_wait_emoji())
+        react_id = await evt.react(self.get_wait_emoji())
         await evt.mark_read()
         # TODO: refresh the typing indicator if generation takes longer
         # (or, alternatively, set a timeout for generation)
@@ -235,7 +235,7 @@ class LlmBot(Plugin):
             response = await backend.create_response(self.http, context=context, model=model)
             await db.append_context(self.database, room.room_id, response.text[0]["role"], response.text[0]["content"])
             await evt.redact(react_id)
-            await evt.react(get_done_emoji())
+            await evt.react(self.get_done_emoji())
             await evt.respond(response.text[0]["content"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
@@ -252,7 +252,7 @@ class LlmBot(Plugin):
         if prompt.startswith("!"):
             return
         room = await self.get_room(evt.room_id)
-        react_id = await evt.react(get_wait_emoji())
+        react_id = await evt.react(self.get_wait_emoji())
         await evt.mark_read()
         # TODO: refresh the typing indicator if generation takes longer
         # (or, alternatively, set a timeout for generation)
@@ -262,7 +262,7 @@ class LlmBot(Plugin):
             model = room.model or backend.default_model
             response = await backend.get_response_input_tokens(self.http, input=prompt, model=model)
             await evt.redact(react_id)
-            await evt.react(get_done_emoji())
+            await evt.react(self.get_done_emoji())
             await evt.reply(f"I count that prompt as having {response.get('input_tokens')} tokens.")
         finally:
             await self.client.set_typing(evt.room_id, 0)
@@ -280,7 +280,7 @@ class LlmBot(Plugin):
             return
         room = await self.get_room(evt.room_id)
         await db.append_context(self.database, room.room_id, "user", evt.content.body)
-        react_id = await evt.react(get_wait_emoji())
+        react_id = await evt.react(self.get_wait_emoji())
         await evt.mark_read()
         # TODO: refresh the typing indicator if generation takes longer
         # (or, alternatively, set a timeout for generation)
@@ -352,7 +352,7 @@ class LlmBot(Plugin):
 
             await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {evt.content.body}")
             await evt.redact(react_id)
-            await evt.react(get_done_emoji())
+            await evt.react(self.get_done_emoji())
             await evt.reply(content)
         finally:
             await self.client.set_typing(evt.room_id, 0)
@@ -376,7 +376,7 @@ class LlmBot(Plugin):
             return
 
         await db.append_context(self.database, room.room_id, "user", prompt)
-        react_id = await evt.react(get_wait_emoji())
+        react_id = await evt.react(self.get_wait_emoji())
         await evt.mark_read()
         # TODO: refresh the typing indicator if generation takes longer
         # (or, alternatively, set a timeout for generation)
@@ -389,7 +389,7 @@ class LlmBot(Plugin):
 
             await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
             await evt.redact(react_id)
-            await evt.react(get_done_emoji())
+            await evt.react(self.get_done_emoji())
             await evt.reply(content)
         finally:
             await self.client.set_typing(evt.room_id, 0)
