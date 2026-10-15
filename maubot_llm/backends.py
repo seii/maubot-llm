@@ -45,15 +45,13 @@ class Responses:
 
 
 class ResponsesInputTokens:
-    def __init__(self, response_id: str, input_tokens: int, model: Optional[str]) -> None:
-        self.response_id = response_id
+    def __init__(self, input_tokens: int, object: str) -> None:
         self.input_tokens = input_tokens
-        self.model = model
+        self.object = object
     
     def __eq__(self, other) -> bool:
-        return (self.response_id == other.response_id and 
-                self.input_tokens == other.input_tokens and 
-                self.model == other.model)
+        return (self.input_tokens == other.input_tokens and 
+                self.object == other.object)
 
 
 class CreateImageGenerations:
@@ -120,11 +118,16 @@ class BasicOpenAIBackend(Backend):
             respbody = await resp.json()
             return [m["id"] for m in respbody["data"]]
 
-    async def create_completion(self, http: ClientSession, prompt: str, model: Optional[str] = None) -> Completions:
+    async def create_completion(self, http: ClientSession, prompt: str, max_tokens: int, model: Optional[str] = None) -> Completions:
         url = f"{self.base_url}/v1/completions"
         reqbody = {"prompt": prompt}
         if model is not None:
             reqbody["model"] = model
+        if max_tokens > 0:
+            reqbody["max_tokens"] = max_tokens
+        else
+            reqbody["max_tokens"] = 1
+        
         headers = {}
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
@@ -138,7 +141,8 @@ class BasicOpenAIBackend(Backend):
                 model=choice.get("model", None)
             )
 
-    async def create_chat_completion(self, http: ClientSession,  context: List[dict], system: Optional[str] = None, model: Optional[str] = None) -> ChatCompletion:
+    # TODO Multi-modal input
+    async def create_chat_completion(self, http: ClientSession, context: List[dict], system: Optional[str] = None, model: Optional[str] = None) -> ChatCompletion:
         url = f"{self.base_url}/v1/chat/completions"
         reqbody = {"messages": context}
         if system is not None:
@@ -158,9 +162,14 @@ class BasicOpenAIBackend(Backend):
                 model=choice.get("model", None)
             )
     
-    async def create_response(self, http: ClientSession, prompt: str, model: Optional[str] = None) -> Responses:
+    # Using `/responses` instead of `/chat/completions` because it is apparently the new
+    #   OpenAI-recommended standard since [March 2025](https://openai.com/index/new-tools-for-building-agents/)
+    #   Llama.cpp also apparently just [converts](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#post-v1responses-openai-compatible-responses-api)
+    #   `/responses` back to `/chat/completions` transparently anyway
+    # TODO Multi-modal input
+    async def create_response(self, http: ClientSession, context: List[dict], model: Optional[str] = None) -> Responses:
         url = f"{self.base_url}/v1/responses"
-        reqbody = {"prompt": prompt}
+        reqbody = {"input": context}
         if model is not None:
             reqbody["model"] = model
         headers = {}
@@ -171,26 +180,28 @@ class BasicOpenAIBackend(Backend):
             respbody = await resp.json()
             return Responses(
                 response_id=respbody["id"],
-                text=respbody["text"],
+                text=respbody["output"],
                 finish_reason=respbody["finish_reason"],
                 model=respbody.get("model", None)
             )
     
-    async def get_response_input_tokens(self, http: ClientSession, response_id: str) -> ResponsesInputTokens:
-        url = f"{self.base_url}/v1/responses/{response_id}/input_tokens"
+    async def get_response_input_tokens(self, http: ClientSession, input: str, model: Optional[str] = None) -> ResponsesInputTokens:
+        url = f"{self.base_url}/v1/responses/input_tokens"
+        reqbody = {"input": input}
+        if model is not None:
+            reqbody["model"] = model
         headers = {}
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
-        async with http.get(url, headers=headers) as resp:
+        async with http.post(url, headers=headers, json=reqbody) as resp:
             # TODO error handling
             respbody = await resp.json()
             return ResponsesInputTokens(
-                response_id=response_id,
                 input_tokens=respbody["input_tokens"],
-                model=respbody.get("model", None)
+                object=respbody.get("object", None)
             )
 
-    async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: str model: Optional[str] = None) -> dict:
+    async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: str, model: Optional[str] = None) -> dict:
         url = f"{self.img_base_url}/v1/images/generations"
         reqbody = {
             "prompt": prompt,
