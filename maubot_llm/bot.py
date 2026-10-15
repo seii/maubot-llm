@@ -74,6 +74,9 @@ class LlmBot(Plugin):
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
+        
+        react_id = await evt.react("⏳")
+
         room = await self.get_room(evt.room_id)
         context = await db.fetch_context(self.database, room.room_id)
         backend = self.get_backend(room)
@@ -102,6 +105,9 @@ class LlmBot(Plugin):
             items.append("- System Prompt not specified")
         items.append(f"- Context Message Count: {len(context)}")
         msg = "\n".join(items)
+        
+        await evt.redact(react_id)
+        await evt.react("✅")
         await evt.reply(msg)
     
     @llm_command.subcommand(help="Switch to a different backend for this room.")
@@ -158,16 +164,52 @@ class LlmBot(Plugin):
         await db.clear_context(self.database, evt.room_id)
         await evt.react("✅")
 
-    #@event.on(EventType.ROOM_MESSAGE)
-    @llm_command.subcommand(help="Ask the LLM to start or continue the current room's chat")
-    async def chat(self, evt: MessageEvent) -> None:
+    @llm_command.subcommand(help="Ask the LLM to predict the completion (once) of a given prompt")
+    @argument("max_tokens")
+    @argument("prompt", pass_raw=True)
+    async def complete(self, evt: MessageEvent, max_tokens: int, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
         if evt.content.body.startswith("!"):
             return
         room = await self.get_room(evt.room_id)
-        await db.append_context(self.database, room.room_id, "user", evt.content.body)
+        
+        if not self.max_tokens:
+            self.log.warn("User did not provide max tokens")
+            return
+        if not self.prompt:
+            self.log.warn("User did not provide prompt")
+            return
+
+        await evt.mark_read()
+        # TODO: refresh the typing indicator if generation takes longer
+        # (or, alternatively, set a timeout for generation)
+        await self.client.set_typing(evt.room_id, 30000)
+        try:
+            backend = self.get_backend(room)
+            model = room.model or backend.default_model
+            completion = await backend.create_completion(self.http, max_tokens=self.max_tokens, prompt=self.prompt, model=model)
+            await evt.react("✅")
+            await evt.reply(completion["text"])
+        finally:
+            await self.client.set_typing(evt.room_id, 0)
+
+    #@event.on(EventType.ROOM_MESSAGE)
+    # TODO Multi-modal input
+    @llm_command.subcommand(help="Ask the LLM to start or continue the current room's chat")
+    @argument("prompt", pass_raw=True)
+    async def chat(self, evt: MessageEvent, prompt: str) -> None:
+        if not self.is_allowed(evt.sender):
+            self.log.warn(f"stranger danger: sender={evt.sender}")
+            return
+        if not self.prompt:
+            self.log.warn("User did not provide a prompt")
+            return
+        if self.prompt.startswith("!"):
+            return
+        room = await self.get_room(evt.room_id)
+        await db.append_context(self.database, room.room_id, "user", self.prompt)
         await evt.mark_read()
         # TODO: refresh the typing indicator if generation takes longer
         # (or, alternatively, set a timeout for generation)
@@ -177,16 +219,44 @@ class LlmBot(Plugin):
             model = room.model or backend.default_model
             system = room.system_prompt or backend.default_system_prompt
             context = await db.fetch_context(self.database, room.room_id)
-            completion = await backend.create_chat_completion(self.http, context=context, system=system, model=model)
-            await db.append_context(self.database, room.room_id, completion.message["role"], completion.message["content"])
-            await evt.respond(completion.message["content"])
+            response = await backend.create_response(self.http, context=context, model=model)
+            await db.append_context(self.database, room.room_id, response.text[0]["role"], response.text[0]["content"])
             await evt.react("✅")
+            await evt.respond(response.text[0]["content"])
+        finally:
+            await self.client.set_typing(evt.room_id, 0)
+
+    @llm_command.subcommand(help="Ask the LLM to count the tokens in a given prompt")
+    @argument("prompt", pass_raw=True)
+    async def count(self, evt: MessageEvent, prompt: str) -> None:
+        if not self.is_allowed(evt.sender):
+            self.log.warn(f"stranger danger: sender={evt.sender}")
+            return
+        if not self.prompt:
+            self.log.warn("User did not provide a prompt")
+            return
+        if self.prompt.startswith("!"):
+            return
+        room = await self.get_room(evt.room_id)
+        await evt.mark_read()
+        # TODO: refresh the typing indicator if generation takes longer
+        # (or, alternatively, set a timeout for generation)
+        await self.client.set_typing(evt.room_id, 30000)
+        try:
+            backend = self.get_backend(room)
+            model = room.model or backend.default_model
+            response = await backend.get_response_input_tokens(self.http, input=self.prompt, model=model)
+            await evt.react("✅")
+            await evt.reply(f"I count that prompt as having {response.get('input_tokens')} tokens.")
         finally:
             await self.client.set_typing(evt.room_id, 0)
     
     #@event.on(EventType.ROOM_MESSAGE)
     @llm_command.subcommand(help="Ask the LLM to generate a picture from the prompt the user provides")
-    async def image(self, evt: MessageEvent) -> None:
+    @argument("size")
+    @argument("output_format")
+    @argument("prompt", pass_raw=True)
+    async def image(self, evt: MessageEvent, size: str, output_format: str, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
@@ -201,13 +271,21 @@ class LlmBot(Plugin):
 
         try:
             backend = self.get_backend(room)
-            system = room.system_prompt or backend.default_system_prompt
-            if not evt.content.body:
+
+            if not self.size:
+                raise ValueError(
+                    "Size not specified by user"
+                )
+            if not self.output_format:
+                raise ValueError(
+                    "Image output format not specified by user"
+                )
+            if not self.prompt:
                 raise ValueError(
                     "Prompt not specified by user"
                 )
             
-            images = await backend.create_image_generation(self.http, evt.content.body)
+            images = await backend.create_image_generation(self.http, self.prompt, 1, self.size, self.output_format, "100")
             if not images.url or not images.url[0] or not images.url[0].get("b64_json"):
                 raise ValueError(
                     "Backend image API returned an empty or malformed response"
@@ -231,6 +309,9 @@ class LlmBot(Plugin):
                 raise ValueError("Backend image API returned no images")
             
             # TODO Upload/return multiple images when supported
+            # Backend has possibly returned multiple images, but Matrix does not currently
+            #   support posting multiple images at once so only the first returned
+            #   image will be sent
             mxc_uri = await self.client.upload_media(
                     image_data[0],
                     mime_type=f"image/{images['output_format']}",
@@ -253,6 +334,41 @@ class LlmBot(Plugin):
             )
 
             await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {evt.content.body}")
+            await evt.reply(content)
+            await evt.react("✅")
+        finally:
+            await self.client.set_typing(evt.room_id, 0)
+    
+    @image.subcommand(help="Ask the LLM to generate an edited picture based on the image and prompt the user provides")
+    @argument("prompt", pass_raw=True)
+    async def edit(self, evt: MessageEvent, prompt: str) -> None:
+        if not self.is_allowed(evt.sender):
+            self.log.warn(f"stranger danger: sender={evt.sender}")
+            return
+        if evt.content.body.startswith("!"):
+            return
+        if not evt.content or evt.content["msgtype"] != "m.image":
+            self.log.warn("Failed to parse: message does not contain an image")
+            return
+
+        room = await self.get_room(evt.room_id)
+
+        if not self.prompt:
+            self.log.warn("No prompt provided by user")
+            return
+
+        await db.append_context(self.database, room.room_id, "user", self.prompt)
+        await evt.mark_read()
+        # TODO: refresh the typing indicator if generation takes longer
+        # (or, alternatively, set a timeout for generation)
+        await self.client.set_typing(evt.room_id, 30000)
+
+        try:
+            backend = self.get_backend(room)
+
+            # TODO Implement
+
+            await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {self.prompt}")
             await evt.reply(content)
             await evt.react("✅")
         finally:
