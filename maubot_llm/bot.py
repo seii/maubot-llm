@@ -263,7 +263,7 @@ class LlmBot(Plugin):
             response = await backend.get_response_input_tokens(self.http, input=prompt, model=model)
             #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
-            await evt.reply(f"I count that prompt as having {response.get('input_tokens')} tokens.")
+            await evt.reply(f"I count that prompt as having {response['input_tokens']} tokens.")
         finally:
             await self.client.set_typing(evt.room_id, 0)
     
