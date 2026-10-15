@@ -2,7 +2,7 @@ from typing import List, Optional
 from aiohttp import ClientSession
 
 class Models:
-    def __init__(self, object: str = "list", data: List[dict]) -> None:
+    def __init__(self, object: str, data: List[dict]) -> None:
         self.object = object
         self.data = data
 
@@ -61,9 +61,9 @@ class CreateImageGenerations:
         self.model = model
     
     def __eq__(self, other) -> bool:
-        return self.url == other.url and
+        return (self.url == other.url and
         self.output_format == output_format and
-        self.model == other.model
+        self.model == other.model)
 
 
 class CreateImageEdit:
@@ -125,7 +125,7 @@ class BasicOpenAIBackend(Backend):
             reqbody["model"] = model
         if max_tokens > 0:
             reqbody["max_tokens"] = max_tokens
-        else
+        else:
             reqbody["max_tokens"] = 1
         
         headers = {}
