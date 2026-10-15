@@ -203,7 +203,7 @@ class LlmBot(Plugin):
             completion = await backend.create_completion(self.http, max_tokens=int(max_tokens), prompt=prompt, model=model)
             #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
-            await evt.reply(completion["text"])
+            await evt.reply(completion.text)
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
