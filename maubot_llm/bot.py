@@ -233,7 +233,8 @@ class LlmBot(Plugin):
             system = room.system_prompt or backend.default_system_prompt
             context = await db.fetch_context(self.database, room.room_id)
             response = await backend.create_response(self.http, context=context, model=model)
-            await db.append_context(self.database, room.room_id, response.text[0]["role"], response.text[0]["content"])
+            # TODO Fix this, it's a quick band-aid for now
+            await db.append_context(self.database, room.room_id, response.text[0]["role"], response.text[0]["content"][0]["text"])
             #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
             await evt.respond(response.text[0]["content"])
