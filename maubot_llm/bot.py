@@ -7,7 +7,7 @@ from maubot.handlers import command, event
 from mautrix.types import (
     EventType,
     ImageInfo,
-    ImageMessageEventContent,
+    MediaMessageEventContent,
     MessageType,
     RelatesTo,
     InReplyTo,
@@ -335,7 +335,7 @@ class LlmBot(Plugin):
                     filename=f"image.{images['output_format']}",
                 )
             
-            content = ImageMessageEventContent(
+            content = MediaMessageEventContent(
                 msgtype=MessageType.IMAGE,
                 body=f"image.{images['output_format']}",
                 url=mxc_uri,
