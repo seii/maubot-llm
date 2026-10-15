@@ -57,12 +57,15 @@ class ResponsesInputTokens:
 
 
 class CreateImageGenerations:
-    def __init__(self, url: str, model: Optional[str]) -> None:
+    def __init__(self, url: str, output_format: str, model: Optional[str]) -> None:
         self.url = url
+        self.output_format = output_format
         self.model = model
     
     def __eq__(self, other) -> bool:
-        return self.url == other.url and self.model == other.model
+        return self.url == other.url and
+        self.output_format == output_format and
+        self.model == other.model
 
 
 class CreateImageEdit:
@@ -187,9 +190,15 @@ class BasicOpenAIBackend(Backend):
                 model=respbody.get("model", None)
             )
 
-    async def create_image_generation(self, http: ClientSession, prompt: str, model: Optional[str] = None) -> dict:
+    async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: str model: Optional[str] = None) -> dict:
         url = f"{self.img_base_url}/v1/images/generations"
-        reqbody = {"prompt": prompt}
+        reqbody = {
+            "prompt": prompt,
+            "n": n,
+            "size": size,
+            "output_format": output_format,
+            "output_compression": output_compression
+            }
 
         # Optional because Stable Diffusion can't currently specify a model on request
         if model is not None:
@@ -200,7 +209,7 @@ class BasicOpenAIBackend(Backend):
         async with http.post(url, headers=headers, json=reqbody) as resp:
             # TODO error handling
             respbody = await resp.json()
-            
+
             # respbody["data"] may contain multiple images, pull those out
             b64_imgs = []
             for body in respbody["data"]:
@@ -209,6 +218,7 @@ class BasicOpenAIBackend(Backend):
 
             return CreateImageGenerations(
                 url=b64_imgs if b64_imgs[0] else "",
+                output_format=respbody.get("output_format", None),
                 model=respbody.get("model", None)
             )
 
