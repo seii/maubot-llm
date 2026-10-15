@@ -175,8 +175,8 @@ class LlmBot(Plugin):
         await evt.react(get_done_emoji())
 
     @llm_command.subcommand(help="Ask the LLM to predict the completion (once) of a given prompt")
-    @argument("max_tokens")
-    @argument("prompt", pass_raw=True)
+    @command.argument("max_tokens")
+    @command.argument("prompt", pass_raw=True)
     async def complete(self, evt: MessageEvent, max_tokens: int, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -210,7 +210,7 @@ class LlmBot(Plugin):
     #@event.on(EventType.ROOM_MESSAGE)
     # TODO Multi-modal input
     @llm_command.subcommand(help="Ask the LLM to start or continue the current room's chat")
-    @argument("prompt", pass_raw=True)
+    @command.argument("prompt", pass_raw=True)
     async def chat(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -241,7 +241,7 @@ class LlmBot(Plugin):
             await self.client.set_typing(evt.room_id, 0)
 
     @llm_command.subcommand(help="Ask the LLM to count the tokens in a given prompt")
-    @argument("prompt", pass_raw=True)
+    @command.argument("prompt", pass_raw=True)
     async def count(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -269,9 +269,9 @@ class LlmBot(Plugin):
     
     #@event.on(EventType.ROOM_MESSAGE)
     @llm_command.subcommand(help="Ask the LLM to generate a picture from the prompt the user provides")
-    @argument("size")
-    @argument("output_format")
-    @argument("prompt", pass_raw=True)
+    @command.argument("size")
+    @command.argument("output_format")
+    @command.argument("prompt", pass_raw=True)
     async def image(self, evt: MessageEvent, size: str, output_format: str, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -358,7 +358,7 @@ class LlmBot(Plugin):
             await self.client.set_typing(evt.room_id, 0)
     
     @image.subcommand(help="Ask the LLM to generate an edited picture based on the image and prompt the user provides")
-    @argument("prompt", pass_raw=True)
+    @command.argument("prompt", pass_raw=True)
     async def edit(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
