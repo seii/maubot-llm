@@ -1,6 +1,3 @@
-# Set this string to use a custom "!<trigger>" for the bot
-#   Default: "!llm"
-custom_trigger: null
 # Set allowlist to `false` to allow anyone; otherwise add entries such as "@user:example.com"
 allowlist: []
 default_backend: "local"
@@ -24,3 +21,11 @@ backends:
     api_key: YOUR_KEY_HERE
     max_tokens: 1024
     default_model: claude-3-opus-20240229
+customization:
+  # Set this string to use a custom "!<trigger>" for the bot
+  #   Default: "!llm"
+  custom_trigger: null
+  # Default emoji: ✅
+  wait_reaction: ""
+  # Default emoji: ⏳
+  done_reaction: ""
