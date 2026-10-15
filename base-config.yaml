@@ -1,3 +1,6 @@
+# Set this string to use a custom "!<trigger>" for the bot
+#   Default: "!llm"
+custom_trigger: null
 # Set allowlist to `false` to allow anyone; otherwise add entries such as "@user:example.com"
 allowlist: []
 default_backend: "local"
@@ -11,7 +14,7 @@ backends:
     # Ignore unless your local backend requires an API key
     api_key: YOUR_KEY_HERE
     default_model: null
-    default_system_prompt: "You are helpful digital assistant."
+    default_system_prompt: "You are a helpful digital assistant."
   openai:
     type: openai
     api_key: YOUR_KEY_HERE

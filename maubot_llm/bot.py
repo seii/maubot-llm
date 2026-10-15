@@ -20,6 +20,7 @@ from mautrix.util.async_db import UpgradeTable
 
 class Config(BaseProxyConfig):
     def do_update(self, helper: ConfigUpdateHelper) -> None:
+        helper.copy("custom_trigger")
         helper.copy("allowlist")
         helper.copy("default_backend")
         helper.copy("backends")
@@ -29,14 +30,18 @@ class LlmBot(Plugin):
     async def start(self) -> None:
         self.config.load_and_update()
     
+    def get_command_name(self) -> str:
+        default_trigger = "llm"
+        return self.config["custom_trigger"] if self.config["custom_trigger"] else default_trigger
+    
+    @classmethod
+    def get_config_class(cls) -> Type[BaseProxyConfig]:
+        return Config
+
     def is_allowed(self, sender: str) -> bool:
         if self.config["allowlist"] == False:
             return True
         return sender in self.config["allowlist"]
-
-    @classmethod
-    def get_config_class(cls) -> Type[BaseProxyConfig]:
-        return Config
     
     async def get_room(self, room_id: str) -> db.Room:
         room = await db.fetch_room(self.database, room_id)
@@ -60,7 +65,7 @@ class LlmBot(Plugin):
             return AnthropicBackend(cfg)
         raise ValueError(f"unknown backend type {cfg['type']}")
     
-    @command.new(name="llm", require_subcommand=True)
+    @command.new(name=get_command_name, require_subcommand=True)
     async def llm_command(self, evt: MessageEvent) -> None:
         pass
 
@@ -153,8 +158,9 @@ class LlmBot(Plugin):
         await db.clear_context(self.database, evt.room_id)
         await evt.react("✅")
 
-    @event.on(EventType.ROOM_MESSAGE)
-    async def handle_msg(self, evt: MessageEvent) -> None:
+    #@event.on(EventType.ROOM_MESSAGE)
+    @llm_command.subcommand(help="Ask the LLM to start or continue the current room's chat")
+    async def chat(self, evt: MessageEvent) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
@@ -174,11 +180,13 @@ class LlmBot(Plugin):
             completion = await backend.create_chat_completion(self.http, context=context, system=system, model=model)
             await db.append_context(self.database, room.room_id, completion.message["role"], completion.message["content"])
             await evt.respond(completion.message["content"])
+            await evt.react("✅")
         finally:
             await self.client.set_typing(evt.room_id, 0)
     
-    @event.on(EventType.ROOM_MESSAGE)
-    async def retrieve_generated_img(self) -> None:
+    #@event.on(EventType.ROOM_MESSAGE)
+    @llm_command.subcommand(help="Ask the LLM to generate a picture from the prompt the user provides")
+    async def image(self, evt: MessageEvent) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
@@ -222,7 +230,7 @@ class LlmBot(Plugin):
             if not image_data:
                 raise ValueError("Backend image API returned no images")
             
-            # TODO Upload/return multiple images when appropriate
+            # TODO Upload/return multiple images when supported
             mxc_uri = await self.client.upload_media(
                     image_data[0],
                     mime_type=f"image/{images['output_format']}",
@@ -245,7 +253,8 @@ class LlmBot(Plugin):
             )
 
             await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {evt.content.body}")
-            await evt.respond(content)
+            await evt.reply(content)
+            await evt.react("✅")
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
