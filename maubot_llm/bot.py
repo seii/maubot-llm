@@ -177,11 +177,11 @@ class LlmBot(Plugin):
     @llm_command.subcommand(help="Ask the LLM to predict the completion (once) of a given prompt")
     @command.argument("max_tokens")
     @command.argument("prompt", pass_raw=True)
-    async def complete(self, evt: MessageEvent, max_tokens: int, prompt: str) -> None:
+    async def complete(self, evt: MessageEvent, max_tokens: str, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
-        if evt.content.body.startswith("!"):
+        if prompt.startswith("!"):
             return
         room = await self.get_room(evt.room_id)
         
@@ -200,7 +200,7 @@ class LlmBot(Plugin):
         try:
             backend = self.get_backend(room)
             model = room.model or backend.default_model
-            completion = await backend.create_completion(self.http, max_tokens=max_tokens, prompt=prompt, model=model)
+            completion = await backend.create_completion(self.http, max_tokens=int(max_tokens), prompt=prompt, model=model)
             #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
             await evt.reply(completion["text"])
@@ -218,7 +218,7 @@ class LlmBot(Plugin):
         if not prompt:
             self.log.warn("User did not provide a prompt")
             return
-        if self.prompt.startswith("!"):
+        if prompt.startswith("!"):
             return
         room = await self.get_room(evt.room_id)
         await db.append_context(self.database, room.room_id, "user", prompt)
