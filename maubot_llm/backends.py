@@ -178,6 +178,7 @@ class BasicOpenAIBackend(Backend):
         async with http.post(url, headers=headers, json=reqbody) as resp:
             # TODO error handling
             respbody = await resp.json()
+            self.log.warn(f"JSON: {respbody}")
             return Responses(
                 response_id=respbody["id"],
                 text=respbody["output"],
