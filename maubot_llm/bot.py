@@ -194,9 +194,7 @@ class LlmBot(Plugin):
         try:
             backend = self.get_backend(room)
             system = room.system_prompt or backend.default_system_prompt
-            if evt.content.body:
-                prompt = evt.content.body
-            else:
+            if not evt.content.body:
                 raise ValueError(
                     "Prompt not specified by user"
                 )
@@ -205,6 +203,11 @@ class LlmBot(Plugin):
             if not images.url or not images.url[0] or not images.url[0].get("b64_json"):
                 raise ValueError(
                     "Backend image API returned an empty or malformed response"
+                )
+
+            if not images["output_format"]:
+                raise ValueError(
+                    "Backend image API did not specify the output format"
                 )
 
             image_data = []
@@ -222,16 +225,16 @@ class LlmBot(Plugin):
             # TODO Upload/return multiple images when appropriate
             mxc_uri = await self.client.upload_media(
                     image_data[0],
-                    mime_type="image/png",
-                    filename="image.png",
+                    mime_type=f"image/{images['output_format']}",
+                    filename=f"image.{images['output_format']}",
                 )
             
             content = ImageMessageEventContent(
                 msgtype=MessageType.IMAGE,
-                body="image.png",
+                body=f"image.{images['output_format']}",
                 url=mxc_uri,
                 info=ImageInfo(
-                    mimetype="image/png",
+                    mimetype=f"image/{images['output_format']}",
                     size=len(image_data),
                 ),
                 relates_to=RelatesTo(
@@ -241,7 +244,7 @@ class LlmBot(Plugin):
                 ),
             )
 
-            await db.append_context(self.database, room.room_id, completion.message["role"], f"Backend generated image from prompt: {evt.content.body}")
+            await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {evt.content.body}")
             await evt.respond(content)
         finally:
             await self.client.set_typing(evt.room_id, 0)
