@@ -185,10 +185,10 @@ class LlmBot(Plugin):
             return
         room = await self.get_room(evt.room_id)
         
-        if not self.max_tokens:
+        if not max_tokens:
             self.log.warn("User did not provide max tokens")
             return
-        if not self.prompt:
+        if not prompt:
             self.log.warn("User did not provide prompt")
             return
 
@@ -200,7 +200,7 @@ class LlmBot(Plugin):
         try:
             backend = self.get_backend(room)
             model = room.model or backend.default_model
-            completion = await backend.create_completion(self.http, max_tokens=self.max_tokens, prompt=self.prompt, model=model)
+            completion = await backend.create_completion(self.http, max_tokens=max_tokens, prompt=prompt, model=model)
             await evt.redact(react_id)
             await evt.react(get_done_emoji())
             await evt.reply(completion["text"])
@@ -215,13 +215,13 @@ class LlmBot(Plugin):
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
-        if not self.prompt:
+        if not prompt:
             self.log.warn("User did not provide a prompt")
             return
         if self.prompt.startswith("!"):
             return
         room = await self.get_room(evt.room_id)
-        await db.append_context(self.database, room.room_id, "user", self.prompt)
+        await db.append_context(self.database, room.room_id, "user", prompt)
         react_id = await evt.react(get_wait_emoji())
         await evt.mark_read()
         # TODO: refresh the typing indicator if generation takes longer
@@ -246,10 +246,10 @@ class LlmBot(Plugin):
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
-        if not self.prompt:
+        if not prompt:
             self.log.warn("User did not provide a prompt")
             return
-        if self.prompt.startswith("!"):
+        if prompt.startswith("!"):
             return
         room = await self.get_room(evt.room_id)
         react_id = await evt.react(get_wait_emoji())
@@ -260,7 +260,7 @@ class LlmBot(Plugin):
         try:
             backend = self.get_backend(room)
             model = room.model or backend.default_model
-            response = await backend.get_response_input_tokens(self.http, input=self.prompt, model=model)
+            response = await backend.get_response_input_tokens(self.http, input=prompt, model=model)
             await evt.redact(react_id)
             await evt.react(get_done_emoji())
             await evt.reply(f"I count that prompt as having {response.get('input_tokens')} tokens.")
@@ -289,20 +289,20 @@ class LlmBot(Plugin):
         try:
             backend = self.get_backend(room)
 
-            if not self.size:
+            if not size:
                 raise ValueError(
                     "Size not specified by user"
                 )
-            if not self.output_format:
+            if not output_format:
                 raise ValueError(
                     "Image output format not specified by user"
                 )
-            if not self.prompt:
+            if not prompt:
                 raise ValueError(
                     "Prompt not specified by user"
                 )
             
-            images = await backend.create_image_generation(self.http, self.prompt, 1, self.size, self.output_format, "100")
+            images = await backend.create_image_generation(self.http, prompt, 1, size, output_format, "100")
             if not images.url or not images.url[0] or not images.url[0].get("b64_json"):
                 raise ValueError(
                     "Backend image API returned an empty or malformed response"
@@ -371,11 +371,11 @@ class LlmBot(Plugin):
 
         room = await self.get_room(evt.room_id)
 
-        if not self.prompt:
+        if not prompt:
             self.log.warn("No prompt provided by user")
             return
 
-        await db.append_context(self.database, room.room_id, "user", self.prompt)
+        await db.append_context(self.database, room.room_id, "user", prompt)
         react_id = await evt.react(get_wait_emoji())
         await evt.mark_read()
         # TODO: refresh the typing indicator if generation takes longer
@@ -387,7 +387,7 @@ class LlmBot(Plugin):
 
             # TODO Implement
 
-            await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {self.prompt}")
+            await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
             await evt.redact(react_id)
             await evt.react(get_done_emoji())
             await evt.reply(content)
