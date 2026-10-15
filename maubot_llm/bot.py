@@ -237,7 +237,8 @@ class LlmBot(Plugin):
             await db.append_context(self.database, room.room_id, response.text[0]["role"], response.text[0]["content"][0]["text"])
             #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
-            await evt.respond(response.text[0]["content"])
+            # TODO Fix this as well
+            await evt.respond(response.text[0]["content"][0]["text"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
