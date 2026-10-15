@@ -31,16 +31,16 @@ class ChatCompletion:
 
 
 class Responses:
-    def __init__(self, response_id: str, text: str, finish_reason: str, model: Optional[str]) -> None:
+    def __init__(self, response_id: str, text: str, status: str, model: Optional[str]) -> None:
         self.response_id = response_id
         self.text = text
-        self.finish_reason = finish_reason
+        self.status = status
         self.model = model
     
     def __eq__(self, other) -> bool:
         return (self.response_id == other.response_id and 
                 self.text == other.text and 
-                self.finish_reason == other.finish_reason and 
+                self.status == other.status and 
                 self.model == other.model)
 
 
@@ -181,7 +181,7 @@ class BasicOpenAIBackend(Backend):
             return Responses(
                 response_id=respbody["id"],
                 text=respbody["output"],
-                finish_reason=respbody["finish_reason"],
+                status=respbody["status"],
                 model=respbody.get("model", None)
             )
     
