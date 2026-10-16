@@ -103,7 +103,7 @@ class LlmBot(Plugin):
             result = await backend.fetch_models(self.http)
             if not result.error and result["data"]:
                 all_models = ", ".join(result["data"])
-            else
+            else:
                 self.log.warn(result["status"])
                 self.log.warn(result["error"])
         except:
