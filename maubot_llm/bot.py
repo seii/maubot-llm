@@ -94,7 +94,12 @@ class LlmBot(Plugin):
 
         all_models = "unknown"
         try:
-            all_models = ", ".join(await backend.fetch_models(self.http))
+            result = await backend.fetch_models(self.http)
+            if not result.error and result["data"]:
+                all_models = ", ".join(result["data"])
+            else
+                self.log.warn(result["status"])
+                self.log.warn(result["error"])
         except:
             pass
 
@@ -201,9 +206,14 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
             model = room.model or backend.default_model
             completion = await backend.create_completion(self.http, max_tokens=int(max_tokens), prompt=prompt, model=model)
-            #await evt.redact(react_id)
-            await evt.react(self.get_done_emoji())
-            await evt.reply(completion.text)
+            
+            if not completion.error and completion["data"]:
+                #await evt.redact(react_id)
+                await evt.react(self.get_done_emoji())
+                await evt.reply(completion.data)
+            else:
+                self.log.warn(result["status"])
+                self.log.warn(result["error"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
@@ -233,12 +243,15 @@ class LlmBot(Plugin):
             system = room.system_prompt or backend.default_system_prompt
             context = await db.fetch_context(self.database, room.room_id)
             response = await backend.create_response(self.http, context=context, model=model)
-            # TODO Fix this, it's a quick band-aid for now
-            await db.append_context(self.database, room.room_id, response.text[0]["role"], response.text[0]["content"][0]["text"])
-            #await evt.redact(react_id)
-            await evt.react(self.get_done_emoji())
-            # TODO Fix this as well
-            await evt.respond(response.text[0]["content"][0]["text"])
+
+            if not response.error and response["data"]:
+                await db.append_context(self.database, room.room_id, response.role, response.data)
+                #await evt.redact(react_id)
+                await evt.react(self.get_done_emoji())
+                await evt.respond(response.data)
+            else:
+                self.log.warn(response["status"])
+                self.log.warn(response["error"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
@@ -263,9 +276,14 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
             model = room.model or backend.default_model
             response = await backend.get_response_input_tokens(self.http, input=prompt, model=model)
-            #await evt.redact(react_id)
-            await evt.react(self.get_done_emoji())
-            await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
+
+            if not response.error and response["data"]:
+                #await evt.redact(react_id)
+                await evt.react(self.get_done_emoji())
+                await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
+            else:
+                self.log.warn(response["status"])
+                self.log.warn(response["error"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
     
@@ -302,56 +320,50 @@ class LlmBot(Plugin):
                 return
             
             images = await backend.create_image_generation(self.http, prompt, 1, size, output_format, "100")
-            if not images.url or not images.url[0] or not images.url[0].get("b64_json"):
-                self.log.warn("Backend image API returned an empty or malformed response")
-                return
 
-            if not images["output_format"]:
-                self.log.warn("Backend image API did not specify the output format")
-                return
+            if not images.error:
+                if not images["data"]:
+                    self.log.warn("Backend image API returned an empty or malformed response")
+                    return
 
-            image_data = []
-            for image in images.url:
-                image_data.append(
-                    base64.b64decode(
-                        image["b64_json"],
-                        validate=True,
+                if not images["output_format"]:
+                    self.log.warn("Backend image API did not specify the output format")
+                    return
+
+                decoded_img = base64.b64decode(image["data"], validate=True)
+
+                if not decoded_img:
+                    self.log.warn("Image could not be decoded from Base64 format")
+                    return
+                
+                mxc_uri = await self.client.upload_media(
+                        decoded_img,
+                        mime_type=f"image/{images['output_format']}",
+                        filename=f"image.{images['output_format']}",
                     )
+                
+                content = MediaMessageEventContent(
+                    msgtype=MessageType.IMAGE,
+                    body=f"image.{images['output_format']}",
+                    url=mxc_uri,
+                    info=ImageInfo(
+                        mimetype=f"image/{images['output_format']}",
+                        size=len(decoded_img),
+                    ),
+                    relates_to=RelatesTo(
+                        in_reply_to=InReplyTo(
+                            event_id=evt.event_id,
+                        )
+                    ),
                 )
 
-            if not image_data:
-                self.log.warn("Backend image API returned no images")
-                return
-            
-            # TODO Upload/return multiple images when supported
-            # Backend has possibly returned multiple images, but Matrix does not currently
-            #   support posting multiple images at once so only the first returned
-            #   image will be sent
-            mxc_uri = await self.client.upload_media(
-                    image_data[0],
-                    mime_type=f"image/{images['output_format']}",
-                    filename=f"image.{images['output_format']}",
-                )
-            
-            content = MediaMessageEventContent(
-                msgtype=MessageType.IMAGE,
-                body=f"image.{images['output_format']}",
-                url=mxc_uri,
-                info=ImageInfo(
-                    mimetype=f"image/{images['output_format']}",
-                    size=len(image_data),
-                ),
-                relates_to=RelatesTo(
-                    in_reply_to=InReplyTo(
-                        event_id=evt.event_id,
-                    )
-                ),
-            )
-
-            await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
-            #await evt.redact(react_id)
-            await evt.react(self.get_done_emoji())
-            await evt.reply(content)
+                await db.append_context(self.database, room.room_id, "assistant", f"Backend generated image from prompt: {prompt}")
+                #await evt.redact(react_id)
+                await evt.react(self.get_done_emoji())
+                await evt.reply(content)
+            else:
+                self.log.warn(response["status"])
+                self.log.warn(response["error"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
@@ -384,6 +396,14 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
 
             # TODO Implement
+
+            if not response.error and response["data"]:
+                #await evt.redact(react_id)
+                await evt.react(self.get_done_emoji())
+                #await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
+            else:
+                self.log.warn(response["status"])
+                self.log.warn(response["error"])
 
             await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
             #await evt.redact(react_id)
