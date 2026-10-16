@@ -260,7 +260,7 @@ class LlmBot(Plugin):
             context = await db.fetch_context(self.database, room.room_id)
             response = await backend.create_response(self.http, context=context, model=model)
 
-            if not response.error and response["data"]:
+            if not response.error and response.data:
                 await db.append_context(self.database, room.room_id, response.role, response.data)
                 # Redact the "wait" emoji
                 await evt.client.redact(evt.room_id, react_id)
@@ -295,7 +295,7 @@ class LlmBot(Plugin):
             model = room.model or backend.default_model
             response = await backend.get_response_input_tokens(self.http, input=prompt, model=model)
 
-            if not response.error and response["data"]:
+            if not response.error and response.data:
                 # Redact the "wait" emoji
                 await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
@@ -420,7 +420,7 @@ class LlmBot(Plugin):
 
             # TODO Implement
 
-            #if not response.error and response["data"]:
+            #if not response.error and response.data:
                 # Redact the "wait" emoji
                 #await evt.client.redact(evt.room_id, react_id)
                 #await evt.react(self.get_done_emoji())
