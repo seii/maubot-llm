@@ -220,14 +220,14 @@ class LlmBot(Plugin):
             model = room.model or backend.default_model
             completion = await backend.create_completion(self.http, max_tokens=int(max_tokens), prompt=prompt, model=model)
 
-            if not completion.error and completion["data"]:
+            if not completion.error and completion.data:
                 # Redact the "wait" emoji
                 await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
                 await evt.reply(completion.data)
             else:
-                self.log.warn(completion["status"])
-                self.log.warn(completion["error"])
+                self.log.warn(completion.status)
+                self.log.warn(completion.error)
                 await evt.react(self.get_error_emoji())
         finally:
             await self.client.set_typing(evt.room_id, 0)
@@ -268,8 +268,8 @@ class LlmBot(Plugin):
                 await evt.respond(response.data)
             else:
                 await evt.react(self.get_error_emoji())
-                self.log.warn(response["status"])
-                self.log.warn(response["error"])
+                self.log.warn(response.status)
+                self.log.warn(response.error)
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
@@ -302,8 +302,8 @@ class LlmBot(Plugin):
                 await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
             else:
                 await evt.react(self.get_error_emoji())
-                self.log.warn(response["status"])
-                self.log.warn(response["error"])
+                self.log.warn(response.status)
+                self.log.warn(response.error)
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
@@ -347,11 +347,11 @@ class LlmBot(Plugin):
                     self.log.warn("Backend image API returned an empty or malformed response")
                     return
 
-                if not images["output_format"]:
+                if not images.output_format:
                     self.log.warn("Backend image API did not specify the output format")
                     return
 
-                decoded_img = base64.b64decode(image["data"], validate=True)
+                decoded_img = base64.b64decode(images.data, validate=True)
 
                 if not decoded_img:
                     self.log.warn("Image could not be decoded from Base64 format")
@@ -359,16 +359,16 @@ class LlmBot(Plugin):
 
                 mxc_uri = await self.client.upload_media(
                         decoded_img,
-                        mime_type=f"image/{images['output_format']}",
-                        filename=f"image.{images['output_format']}",
+                        mime_type=f"image/{images.output_format}",
+                        filename=f"image.{images.output_format}",
                     )
 
                 content = MediaMessageEventContent(
                     msgtype=MessageType.IMAGE,
-                    body=f"image.{images['output_format']}",
+                    body=f"image.{images.output_format}",
                     url=mxc_uri,
                     info=ImageInfo(
-                        mimetype=f"image/{images['output_format']}",
+                        mimetype=f"image/{images.output_format}",
                         size=len(decoded_img),
                     ),
                     relates_to=RelatesTo(
@@ -385,8 +385,8 @@ class LlmBot(Plugin):
                 await evt.reply(content)
             else:
                 await evt.react(self.get_error_emoji())
-                self.log.warn(images["status"])
-                self.log.warn(images["error"])
+                self.log.warn(images.status)
+                self.log.warn(images.error)
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
@@ -427,8 +427,8 @@ class LlmBot(Plugin):
                 #await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
             #else:
                 #await evt.react(self.get_error_emoji())
-                #self.log.warn(response["status"])
-                #self.log.warn(response["error"])
+                #self.log.warn(response.status)
+                #self.log.warn(response.error)
 
             #await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
             #await evt.redact(react_id)
