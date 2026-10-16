@@ -1,79 +1,14 @@
 from typing import List, Optional
 from aiohttp import ClientSession
-
-class Models:
-    def __init__(self, object: str, data: List[dict]) -> None:
-        self.object = object
-        self.data = data
-
-    def __eq__(self, other) -> bool:
-        return self.object == other.object and self.data == other.data
-
-
-class Completions:
-    def __init__(self, text: str, finish_reason: str, model: Optional[str]) -> None:
-        self.text = text
-        self.finish_reason = finish_reason
-        self.model = model
-    
-    def __eq__(self, other) -> bool:
-        return self.text == other.text and self.finish_reason == other.finish_reason and self.model == other.model
-
-
-class ChatCompletion:
-    def __init__(self, message: dict, finish_reason: str, model: Optional[str]) -> None:
-        self.message = message
-        self.finish_reason = finish_reason
-        self.model = model
-    
-    def __eq__(self, other) -> bool:
-        return self.message == other.message and self.finish_reason == other.finish_reason and self.model == other.model
-
-
-class Responses:
-    def __init__(self, response_id: str, text: str, status: str, model: Optional[str]) -> None:
-        self.response_id = response_id
-        self.text = text
-        self.status = status
-        self.model = model
-    
-    def __eq__(self, other) -> bool:
-        return (self.response_id == other.response_id and 
-                self.text == other.text and 
-                self.status == other.status and 
-                self.model == other.model)
-
-
-class ResponsesInputTokens:
-    def __init__(self, input_tokens: int, object: str) -> None:
-        self.input_tokens = input_tokens
-        self.object = object
-    
-    def __eq__(self, other) -> bool:
-        return (self.input_tokens == other.input_tokens and 
-                self.object == other.object)
-
-
-class CreateImageGenerations:
-    def __init__(self, url: str, output_format: str, model: Optional[str]) -> None:
-        self.url = url
-        self.output_format = output_format
-        self.model = model
-    
-    def __eq__(self, other) -> bool:
-        return (self.url == other.url and
-        self.output_format == output_format and
-        self.model == other.model)
-
-
-class CreateImageEdit:
-    def __init__(self, url: str, model: Optional[str]) -> None:
-        self.url = url
-        self.model = model
-    
-    def __eq__(self, other) -> bool:
-        return self.url == other.url and self.model == other.model
-
+from _backends import (
+    Models,
+    Completions,
+    ChatCompletion,
+    Responses,
+    ResponsesInputTokens,
+    CreateImageGenerations,
+    CreateImageEdit
+)
 
 class Backend:
     def __init__(self, cfg: dict) -> None:
@@ -96,6 +31,11 @@ class Backend:
     async def get_response_input_tokens(self, http: ClientSession, response_id: str) -> ResponsesInputTokens:
         raise NotImplementedError()
 
+    async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: str, model: Optional[str] = None) -> CreateImageGenerations:
+        raise NotImplementedError()
+    
+    async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> CreateImageEdit:
+        raise NotImplementedError()
 
 class BasicOpenAIBackend(Backend):
     def __init__(self, cfg) -> None:
@@ -108,15 +48,33 @@ class BasicOpenAIBackend(Backend):
         else:
             self.authorization = None
     
-    async def fetch_models(self, http: ClientSession) -> List[str]:
+    async def fetch_models(self, http: ClientSession) -> Models:
         url = f"{self.base_url}/v1/models"
         headers = {}
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.get(url, headers=headers) as resp:
-            # TODO error handling
-            respbody = await resp.json()
-            return [m["id"] for m in respbody["data"]]
+            status = f"{resp["status"]} {resp["reason"]}"
+
+            # Any errors should populate `error` with the response's body
+            error = None
+            result = None
+            if not resp.ok:
+                error = await resp.text()
+            else:
+                respbody = await resp.json()
+
+                # Empty "data" field is valid, missing field is not
+                if respbody and respbody["data"]:
+                    result = [m["id"] for m in respbody["data"]]
+                else:
+                    error = await resp.text()
+            return Models(
+                data=result,
+                object=respbody["object_"] if respbody["object_"] else "list",
+                status=status,
+                error=error
+            )
 
     async def create_completion(self, http: ClientSession, prompt: str, max_tokens: int, model: Optional[str] = None) -> Completions:
         url = f"{self.base_url}/v1/completions"
@@ -132,13 +90,27 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            # TODO error handling
-            respbody = await resp.json()
-            choice = respbody["choices"][0]
+            status = f"{resp["status"]} {resp["reason"]}"
+
+            # Any errors should populate `error` with the response's body
+            error = None
+            result = None
+            if not resp.ok:
+                error = await resp.text()
+            else:
+                respbody = await resp.json()
+
+                # Empty "choices" field is valid, missing field is not
+                if respbody and respbody["choices"]:
+                    # Llama.cpp does not support multiple completions per request
+                    result = respbody["choices"][0]["text"]
+                else:
+                    error = await resp.text()
             return Completions(
-                text=choice["text"],
-                finish_reason=choice["finish_reason"],
-                model=choice.get("model", None)
+                data=result,
+                status=status,
+                model=choice.get("model", None),
+                error=error
             )
 
     # TODO Multi-modal input
@@ -153,20 +125,32 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            # TODO error handling
-            respbody = await resp.json()
-            choice = respbody["choices"][0]
+            status = f"{resp["status"]} {resp["reason"]}"
+
+            # Any errors should populate `error` with the response's body
+            error = None
+            result = None
+            if not resp.ok:
+                error = await resp.text()
+            else:
+                respbody = await resp.json()
+                # Empty "choices" field is valid, missing field is not
+                if respbody and respbody["choices"]:
+                    # Llama.cpp does not support multiple completions per request
+                    result = respbody["choices"][0]["message"]
+                else:
+                    error = await resp.text()
             return ChatCompletion(
-                message=choice["message"],
-                finish_reason=choice["finish_reason"],
-                model=choice.get("model", None)
+                data=result,
+                status=status,
+                model=choice.get("model", None),
+                error=error
             )
     
-    # Using `/responses` instead of `/chat/completions` because it is apparently the new
-    #   OpenAI-recommended standard since [March 2025](https://openai.com/index/new-tools-for-building-agents/)
+    # `/responses` is apparently the new OpenAI-recommended standard since
+    #   [March 2025](https://openai.com/index/new-tools-for-building-agents/)
     #   Llama.cpp also apparently just [converts](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#post-v1responses-openai-compatible-responses-api)
-    #   `/responses` back to `/chat/completions` transparently anyway
-    # TODO Multi-modal input
+    #   `/responses` back to `/chat/completions` transparently for now
     async def create_response(self, http: ClientSession, context: List[dict], model: Optional[str] = None) -> Responses:
         url = f"{self.base_url}/v1/responses"
         reqbody = {"input": context}
@@ -176,13 +160,31 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            # TODO error handling
-            respbody = await resp.json()
+            status = f"{resp["status"]} {resp["reason"]}"
+
+            # Any errors should populate `error` with the response's body
+            error = None
+            result = None
+            if not resp.ok:
+                error = await resp.text()
+            else:
+                respbody = await resp.json()
+
+                # Empty "output" field is valid, missing field is not
+                if respbody and respbody["output"]:
+                    role = respbody["output"][0]["role"]
+                    # Llama.cpp does not support multiple completions per request
+                    # TODO Multi-modal input
+                    result = respbody["output"][0]["content"][0]["text"]
+                else:
+                    error = await resp.text()
             return Responses(
                 response_id=respbody["id"],
-                text=respbody["output"],
-                status=respbody["status"],
-                model=respbody.get("model", None)
+                role=role,
+                data=result,
+                status=status,
+                model=respbody.get("model", None),
+                error=error
             )
     
     async def get_response_input_tokens(self, http: ClientSession, input: str, model: Optional[str] = None) -> ResponsesInputTokens:
@@ -194,14 +196,24 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            # TODO error handling
-            respbody = await resp.json()
+            status = f"{resp["status"]} {resp["reason"]}"
+
+            # Any errors should populate `error` with the response's body
+            error = None
+            result = None
+            if not resp.ok:
+                error = await resp.text()
+            else:
+                respbody = await resp.json()
+                result = respbody["input_tokens"]
             return ResponsesInputTokens(
-                input_tokens=respbody["input_tokens"],
-                object=respbody.get("object", None)
+                data=result,
+                status=status,
+                object_=respbody.get("object", None),
+                error=error
             )
 
-    async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: str, model: Optional[str] = None) -> dict:
+    async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: str, model: Optional[str] = None) -> CreateImageGenerations:
         url = f"{self.img_base_url}/v1/images/generations"
         reqbody = {
             "prompt": prompt,
@@ -218,22 +230,41 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            # TODO error handling
-            respbody = await resp.json()
+            status = f"{resp["status"]} {resp["reason"]}"
 
-            # respbody["data"] may contain multiple images, pull those out
-            b64_imgs = []
-            for body in respbody["data"]:
-                if body and body["b64_json"]:
-                    b64_imgs.append(body)
+            # Any errors should populate `error` with the response's body
+            error = None
+            result = None
+            if not resp.ok:
+                error = await resp.text()
+            else:
+                respbody = await resp.json()
+
+                # Empty "data" field is valid, missing field is not
+                if respbody and respbody["data"]:
+                    # respbody["data"] may contain multiple images, pull those out
+                    b64_imgs = []
+                    for body in respbody["data"]:
+                        if body and body["b64_json"]:
+                            b64_imgs.append(body)
+
+                    # TODO Upload/return multiple images when supported
+                    # `b64_imgs` may now hold multiple images, but Matrix does not currently
+                    #   support posting multiple images at once so only the first returned
+                    #   image will be sent
+                    result = b64_imgs[0]["b64_json"] if b64_imgs else ""
+                else:
+                    error = await resp.text()
 
             return CreateImageGenerations(
-                url=b64_imgs if b64_imgs[0] else "",
-                output_format=respbody.get("output_format", None),
-                model=respbody.get("model", None)
+                data=result,
+                output_format=respbody["output_format"] if respbody else None,
+                status=status,
+                model=respbody.get("model", None),
+                error=error
             )
 
-    async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> dict:
+    async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> CreateImageEdit:
         url = f"{self.img_base_url}/v1/images/edits"
         # For multipart/form-data requests, we'll need to use aiohttp's FormData
         from aiohttp import FormData
@@ -249,12 +280,37 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, data=form) as resp:
-            # TODO error handling
-            respbody = await resp.json()
+            status = f"{resp["status"]} {resp["reason"]}"
+
+            # Any errors should populate `error` with the response's body
+            error = None
+            result = None
+            if not resp.ok:
+                error = await resp.text()
+            else:
+                respbody = await resp.json()
+
+                # Empty "data" field is valid, missing field is not
+                if respbody and respbody["data"]:
+                    # respbody["data"] may contain multiple images, pull those out
+                    b64_imgs = []
+                    for body in respbody["data"]:
+                        if body and body["b64_json"]:
+                            b64_imgs.append(body)
+
+                    # TODO Upload/return multiple images when supported
+                    # `b64_imgs` may now hold multiple images, but Matrix does not currently
+                    #   support posting multiple images at once so only the first returned
+                    #   image will be sent
+                    result = b64_imgs[0]["b64_json"] if b64_imgs else ""
+                else:
+                    error = await resp.text()
             # Returns the entire `data` entry because it may contain multiple images
             return CreateImageEdit(
-                url=respbody["data"] if respbody["data"] else "",
-                model=respbody.get("model", None)
+                data=result,
+                status=status,
+                model=respbody.get("model", None),
+                error=error
             )
 
 
