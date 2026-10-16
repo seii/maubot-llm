@@ -237,6 +237,7 @@ class BasicOpenAIBackend(Backend):
             # Any errors should populate `error` with the response's body
             error = None
             result = None
+            format = None
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -257,7 +258,6 @@ class BasicOpenAIBackend(Backend):
                     #   image will be sent
                     result = b64_imgs[0]["b64_json"] if b64_imgs else ""
                 else:
-                    format = None
                     error = await resp.text()
 
             return CreateImageGenerations(
