@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+
 # Convention:
 #   `data` = already-parsed data intended for user consumption (return type changes per-class)
 #   `status` = aiohttp's `status` + `reason` as one string
@@ -14,10 +15,10 @@ class Models:
 
     def __eq__(self, other) -> bool:
         return (self.data == other.data and
-            self.status == other.status and
-            self.object_ == other.object_ and
-            self.error == other.error
-        )
+                self.status == other.status and
+                self.object_ == other.object_ and
+                self.error == other.error
+                )
 
 
 class Completions:
@@ -29,10 +30,10 @@ class Completions:
     
     def __eq__(self, other) -> bool:
         return (self.data == other.data and
-            self.status == other.status and
-            self.model == other.model and
-            self.error == other.error
-        )
+                self.status == other.status and
+                self.model == other.model and
+                self.error == other.error
+                )
 
 
 class ChatCompletion:
@@ -44,10 +45,10 @@ class ChatCompletion:
     
     def __eq__(self, other) -> bool:
         return (self.data == other.data and
-            self.status == other.status and
-            self.model == other.model and
-            self.error == other.error
-        )
+                self.status == other.status and
+                self.model == other.model and
+                self.error == other.error
+                )
 
 
 class Responses:
@@ -60,13 +61,13 @@ class Responses:
         self.error = error
     
     def __eq__(self, other) -> bool:
-        return (self.response_id == other.response_id and 
+        return (self.response_id == other.response_id and
                 self.role == other.role and
-                self.data == other.data and 
+                self.data == other.data and
                 self.status == other.status and
                 self.model == other.model and
                 self.error == other.error
-        )
+                )
 
 
 class ResponsesInputTokens:
@@ -81,7 +82,7 @@ class ResponsesInputTokens:
                 self.status == other.status and
                 self.object_ == other.object_ and
                 self.error == other.error
-        )
+                )
 
 
 class CreateImageGenerations:
@@ -94,11 +95,11 @@ class CreateImageGenerations:
     
     def __eq__(self, other) -> bool:
         return (self.data == other.data and
-            self.output_format == output_format and
-            self.status == other.status and
-            self.model == other.model and
-            self.error == other.error
-        )
+                self.output_format == other.output_format and
+                self.status == other.status and
+                self.model == other.model and
+                self.error == other.error
+                )
 
 
 class CreateImageEdit:
@@ -110,7 +111,7 @@ class CreateImageEdit:
     
     def __eq__(self, other) -> bool:
         return (self.data == other.data and
-            self.status == other.status and
-            self.model == other.model and
-            self.error == other.error
-        )
+                self.status == other.status and
+                self.model == other.model and
+                self.error == other.error
+                )

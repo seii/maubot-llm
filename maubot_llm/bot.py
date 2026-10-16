@@ -2,7 +2,7 @@ import base64
 
 from maubot import Plugin
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
-from maubot import Plugin, MessageEvent
+from maubot import MessageEvent
 from maubot.handlers import command, event
 from mautrix.types import (
     EventType,
@@ -29,11 +29,11 @@ class Config(BaseProxyConfig):
 class LlmBot(Plugin):
     async def start(self) -> None:
         self.config.load_and_update()
-    
+
     def get_command_name(self) -> str:
         default_trigger = "llm"
         return self.config["customization"]["custom_trigger"] if self.config["customization"]["custom_trigger"] else default_trigger
-    
+
     @classmethod
     def get_config_class(cls) -> Type[BaseProxyConfig]:
         return Config
@@ -42,7 +42,7 @@ class LlmBot(Plugin):
         wait = "⏳"
 
         return self.config["customization"]["wait_reaction"] if self.config["customization"] and self.config["customization"]["wait_reaction"] else wait
-    
+
     def get_error_emoji(self) -> str:
         error = "⚠️"
 
@@ -57,7 +57,7 @@ class LlmBot(Plugin):
         if self.config["allowlist"] == False:
             return True
         return sender in self.config["allowlist"]
-    
+
     async def get_room(self, room_id: str) -> db.Room:
         room = await db.fetch_room(self.database, room_id)
         if room is None:
@@ -65,7 +65,7 @@ class LlmBot(Plugin):
             room.room_id = room_id
             await db.upsert_room(self.database, room)
         return room
-    
+
     def get_backend(self, room: db.Room) -> Backend:
         key = room.backend
         if key is None:
@@ -79,7 +79,7 @@ class LlmBot(Plugin):
         if cfg["type"] == "anthropic":
             return AnthropicBackend(cfg)
         raise ValueError(f"unknown backend type {cfg['type']}")
-    
+
     @command.new(name=get_command_name, require_subcommand=True)
     async def llm_command(self, evt: MessageEvent) -> None:
         pass
@@ -90,7 +90,7 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
             return
-        
+   
         react_id = await evt.react(self.get_wait_emoji())
 
         room = await self.get_room(evt.room_id)
@@ -126,7 +126,7 @@ class LlmBot(Plugin):
             items.append("- System Prompt not specified")
         items.append(f"- Context Message Count: {len(context)}")
         msg = "\n".join(items)
-        
+
         # Redact the "wait" emoji
         await evt.client.redact(evt.room_id, react_id)
         await evt.react(self.get_done_emoji())
@@ -165,7 +165,7 @@ class LlmBot(Plugin):
             room.model = model
         await db.upsert_room(self.database, room)
         await evt.react(self.get_done_emoji())
-    
+
     @command.argument("prompt", pass_raw=True)
     @llm_command.subcommand(help="Switch to a different system prompt for this room. Use '-' to switch to the backend's default system prompt.")
     async def system(self, evt: MessageEvent, prompt: str) -> None:
@@ -202,7 +202,7 @@ class LlmBot(Plugin):
         if prompt.startswith("!"):
             return
         room = await self.get_room(evt.room_id)
-        
+
         if not max_tokens:
             self.log.warn("User did not provide max tokens")
             return
@@ -219,15 +219,15 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
             model = room.model or backend.default_model
             completion = await backend.create_completion(self.http, max_tokens=int(max_tokens), prompt=prompt, model=model)
-            
+
             if not completion.error and completion["data"]:
                 # Redact the "wait" emoji
                 await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
                 await evt.reply(completion.data)
             else:
-                self.log.warn(result["status"])
-                self.log.warn(result["error"])
+                self.log.warn(completion["status"])
+                self.log.warn(completion["error"])
                 await evt.react(self.get_error_emoji())
         finally:
             await self.client.set_typing(evt.room_id, 0)
@@ -256,7 +256,7 @@ class LlmBot(Plugin):
         try:
             backend = self.get_backend(room)
             model = room.model or backend.default_model
-            system = room.system_prompt or backend.default_system_prompt
+            #system = room.system_prompt or backend.default_system_prompt
             context = await db.fetch_context(self.database, room.room_id)
             response = await backend.create_response(self.http, context=context, model=model)
 
@@ -306,7 +306,7 @@ class LlmBot(Plugin):
                 self.log.warn(response["error"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
-    
+
     #@event.on(EventType.ROOM_MESSAGE)
     @command.argument("prompt", pass_raw=True)
     @command.argument("output_format")
@@ -339,7 +339,7 @@ class LlmBot(Plugin):
             if not output_format:
                 self.log.warn("Image output format not specified by user")
                 return
-            
+
             images = await backend.create_image_generation(self.http, prompt, 1, size, output_format, "100")
 
             if not images.error:
@@ -356,13 +356,13 @@ class LlmBot(Plugin):
                 if not decoded_img:
                     self.log.warn("Image could not be decoded from Base64 format")
                     return
-                
+
                 mxc_uri = await self.client.upload_media(
                         decoded_img,
                         mime_type=f"image/{images['output_format']}",
                         filename=f"image.{images['output_format']}",
                     )
-                
+
                 content = MediaMessageEventContent(
                     msgtype=MessageType.IMAGE,
                     body=f"image.{images['output_format']}",
@@ -385,8 +385,8 @@ class LlmBot(Plugin):
                 await evt.reply(content)
             else:
                 await evt.react(self.get_error_emoji())
-                self.log.warn(response["status"])
-                self.log.warn(response["error"])
+                self.log.warn(images["status"])
+                self.log.warn(images["error"])
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
@@ -415,27 +415,27 @@ class LlmBot(Plugin):
         # (or, alternatively, set a timeout for generation)
         await self.client.set_typing(evt.room_id, 30000)
 
-        try:
-            backend = self.get_backend(room)
+        #try:
+            #backend = self.get_backend(room)
 
             # TODO Implement
 
-            if not response.error and response["data"]:
+            #if not response.error and response["data"]:
                 # Redact the "wait" emoji
-                await evt.client.redact(evt.room_id, react_id)
-                await evt.react(self.get_done_emoji())
+                #await evt.client.redact(evt.room_id, react_id)
+                #await evt.react(self.get_done_emoji())
                 #await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
-            else:
-                await evt.react(self.get_error_emoji())
-                self.log.warn(response["status"])
-                self.log.warn(response["error"])
+            #else:
+                #await evt.react(self.get_error_emoji())
+                #self.log.warn(response["status"])
+                #self.log.warn(response["error"])
 
-            await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
+            #await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
             #await evt.redact(react_id)
-            await evt.react(self.get_done_emoji())
-            await evt.reply(content)
-        finally:
-            await self.client.set_typing(evt.room_id, 0)
+            #await evt.react(self.get_done_emoji())
+            #await evt.reply(content)
+        #finally:
+            #await self.client.set_typing(evt.room_id, 0)
 
     @classmethod
     def get_db_upgrade_table(cls) -> UpgradeTable | None:

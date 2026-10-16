@@ -10,6 +10,7 @@ from maubot_llm._backends import (
     CreateImageEdit
 )
 
+
 class Backend:
     def __init__(self, cfg: dict) -> None:
         self.cfg = cfg
@@ -36,6 +37,7 @@ class Backend:
     
     async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> CreateImageEdit:
         raise NotImplementedError()
+
 
 class BasicOpenAIBackend(Backend):
     def __init__(self, cfg) -> None:
@@ -85,7 +87,7 @@ class BasicOpenAIBackend(Backend):
             reqbody["max_tokens"] = max_tokens
         else:
             reqbody["max_tokens"] = 1
-        
+
         headers = {}
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
@@ -109,7 +111,7 @@ class BasicOpenAIBackend(Backend):
             return Completions(
                 data=result,
                 status=status,
-                model=choice.get("model", None),
+                model=respbody.get("model", None),
                 error=error
             )
 
@@ -143,10 +145,10 @@ class BasicOpenAIBackend(Backend):
             return ChatCompletion(
                 data=result,
                 status=status,
-                model=choice.get("model", None),
+                model=respbody.get("model", None),
                 error=error
             )
-    
+
     # `/responses` is apparently the new OpenAI-recommended standard since
     #   [March 2025](https://openai.com/index/new-tools-for-building-agents/)
     #   Llama.cpp also apparently just [converts](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#post-v1responses-openai-compatible-responses-api)
@@ -186,7 +188,7 @@ class BasicOpenAIBackend(Backend):
                 model=respbody.get("model", None),
                 error=error
             )
-    
+ 
     async def get_response_input_tokens(self, http: ClientSession, input: str, model: Optional[str] = None) -> ResponsesInputTokens:
         url = f"{self.base_url}/v1/responses/input_tokens"
         reqbody = {"input": input}
@@ -348,4 +350,3 @@ class AnthropicBackend(Backend):
                 finish_reason=respbody["stop_reason"],
                 model=respbody["model"]
             )
-
