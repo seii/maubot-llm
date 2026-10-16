@@ -43,6 +43,11 @@ class LlmBot(Plugin):
 
         return self.config["customization"]["wait_reaction"] if self.config["customization"] and self.config["customization"]["wait_reaction"] else wait
     
+    def get_error_emoji(self) -> str:
+        error = "⚠️"
+
+        return self.config["customization"]["error_reaction"] if self.config["customization"] and self.config["customization"]["error_reaction"] else error
+
     def get_done_emoji(self) -> str:
         done = "✅"
 
@@ -83,6 +88,7 @@ class LlmBot(Plugin):
     async def info(self, evt: MessageEvent) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
+            await evt.react(self.get_error_emoji())
             return
         
         react_id = await evt.react(self.get_wait_emoji())
@@ -121,7 +127,8 @@ class LlmBot(Plugin):
         items.append(f"- Context Message Count: {len(context)}")
         msg = "\n".join(items)
         
-        #await evt.redact(react_id)
+        # Redact the "wait" emoji
+        await evt.client.redact(evt.room_id, react_id)
         await evt.react(self.get_done_emoji())
         await evt.reply(msg)
 
@@ -130,10 +137,12 @@ class LlmBot(Plugin):
     async def backend(self, evt: MessageEvent, key: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
+            await evt.react(self.get_error_emoji())
             return
         if key not in self.config["backends"].keys():
             all_backends = ", ".join(self.config["backends"].keys())
             msg = f"Invalid backend. Available backends: {all_backends}"
+            await evt.react(self.get_error_emoji())
             await evt.reply(msg)
             return
         room = await self.get_room(evt.room_id)
@@ -146,6 +155,7 @@ class LlmBot(Plugin):
     async def model(self, evt: MessageEvent, model: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
+            await evt.react(self.get_error_emoji())
             return
         # TODO validate model when the backend supports it
         room = await self.get_room(evt.room_id)
@@ -161,6 +171,7 @@ class LlmBot(Plugin):
     async def system(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
+            await evt.react(self.get_error_emoji())
             return
         # TODO validate model when the backend supports it
         room = await self.get_room(evt.room_id)
@@ -175,6 +186,7 @@ class LlmBot(Plugin):
     async def clear(self, evt: MessageEvent) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
+            await evt.react(self.get_error_emoji())
             return
         await db.clear_context(self.database, evt.room_id)
         await evt.react(self.get_done_emoji())
@@ -185,6 +197,7 @@ class LlmBot(Plugin):
     async def complete(self, evt: MessageEvent, max_tokens: str, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
+            await evt.react(self.get_error_emoji())
             return
         if prompt.startswith("!"):
             return
@@ -208,12 +221,14 @@ class LlmBot(Plugin):
             completion = await backend.create_completion(self.http, max_tokens=int(max_tokens), prompt=prompt, model=model)
             
             if not completion.error and completion["data"]:
-                #await evt.redact(react_id)
+                # Redact the "wait" emoji
+                await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
                 await evt.reply(completion.data)
             else:
                 self.log.warn(result["status"])
                 self.log.warn(result["error"])
+                await evt.react(self.get_error_emoji())
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
@@ -224,6 +239,7 @@ class LlmBot(Plugin):
     async def chat(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
+            await evt.react(self.get_error_emoji())
             return
         if not prompt:
             self.log.warn("User did not provide a prompt")
@@ -246,10 +262,12 @@ class LlmBot(Plugin):
 
             if not response.error and response["data"]:
                 await db.append_context(self.database, room.room_id, response.role, response.data)
-                #await evt.redact(react_id)
+                # Redact the "wait" emoji
+                await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
                 await evt.respond(response.data)
             else:
+                await evt.react(self.get_error_emoji())
                 self.log.warn(response["status"])
                 self.log.warn(response["error"])
         finally:
@@ -278,10 +296,12 @@ class LlmBot(Plugin):
             response = await backend.get_response_input_tokens(self.http, input=prompt, model=model)
 
             if not response.error and response["data"]:
-                #await evt.redact(react_id)
+                # Redact the "wait" emoji
+                await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
                 await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
             else:
+                await evt.react(self.get_error_emoji())
                 self.log.warn(response["status"])
                 self.log.warn(response["error"])
         finally:
@@ -295,6 +315,7 @@ class LlmBot(Plugin):
     async def image(self, evt: MessageEvent, size: str, output_format: str, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
+            await evt.react(self.get_error_emoji())
             return
         if not prompt:
             self.log.warn("User didn't provide a prompt")
@@ -358,10 +379,12 @@ class LlmBot(Plugin):
                 )
 
                 await db.append_context(self.database, room.room_id, "assistant", f"Backend generated image from prompt: {prompt}")
-                #await evt.redact(react_id)
+                # Redact the "wait" emoji
+                await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
                 await evt.reply(content)
             else:
+                await evt.react(self.get_error_emoji())
                 self.log.warn(response["status"])
                 self.log.warn(response["error"])
         finally:
@@ -398,10 +421,12 @@ class LlmBot(Plugin):
             # TODO Implement
 
             if not response.error and response["data"]:
-                #await evt.redact(react_id)
+                # Redact the "wait" emoji
+                await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
                 #await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
             else:
+                await evt.react(self.get_error_emoji())
                 self.log.warn(response["status"])
                 self.log.warn(response["error"])
 

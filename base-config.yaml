@@ -27,5 +27,7 @@ customization:
   custom_trigger: null
   # Default emoji: ✅
   wait_reaction: ""
+  # Default emoji: ⚠️
+  error_reaction: ""
   # Default emoji: ⏳
   done_reaction: ""
