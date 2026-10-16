@@ -299,7 +299,7 @@ class LlmBot(Plugin):
                 # Redact the "wait" emoji
                 await evt.client.redact(evt.room_id, react_id)
                 await evt.react(self.get_done_emoji())
-                await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
+                await evt.reply(f"I count that prompt as having {response.data} tokens.")
             else:
                 await evt.react(self.get_error_emoji())
                 self.log.warn(response.status)
@@ -424,7 +424,7 @@ class LlmBot(Plugin):
                 # Redact the "wait" emoji
                 #await evt.client.redact(evt.room_id, react_id)
                 #await evt.react(self.get_done_emoji())
-                #await evt.reply(f"I count that prompt as having {response.input_tokens} tokens.")
+                #await evt.reply(f"I count that prompt as having {response.data} tokens.")
             #else:
                 #await evt.react(self.get_error_emoji())
                 #self.log.warn(response.status)
