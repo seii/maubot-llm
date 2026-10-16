@@ -342,7 +342,7 @@ class LlmBot(Plugin):
 
             images = await backend.create_image_generation(self.http, prompt, 1, size, output_format, "100")
 
-            if not images.error:
+            if images and not images.error:
                 if not images["data"]:
                     self.log.warn("Backend image API returned an empty or malformed response")
                     return
