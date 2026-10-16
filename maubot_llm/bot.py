@@ -119,9 +119,9 @@ class LlmBot(Plugin):
         #await evt.redact(react_id)
         await evt.react(self.get_done_emoji())
         await evt.reply(msg)
-    
-    @llm_command.subcommand(help="Switch to a different backend for this room.")
+
     @command.argument("key")
+    @llm_command.subcommand(help="Switch to a different backend for this room.")
     async def backend(self, evt: MessageEvent, key: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -135,9 +135,9 @@ class LlmBot(Plugin):
         room.backend = key
         await db.upsert_room(self.database, room)
         await evt.react(self.get_done_emoji())
-    
-    @llm_command.subcommand(help="Switch to a different model for this room. Use '-' to switch to the backend's default model.")
+
     @command.argument("model")
+    @llm_command.subcommand(help="Switch to a different model for this room. Use '-' to switch to the backend's default model.")
     async def model(self, evt: MessageEvent, model: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -151,8 +151,8 @@ class LlmBot(Plugin):
         await db.upsert_room(self.database, room)
         await evt.react(self.get_done_emoji())
     
-    @llm_command.subcommand(help="Switch to a different system prompt for this room. Use '-' to switch to the backend's default system prompt.")
     @command.argument("prompt", pass_raw=True)
+    @llm_command.subcommand(help="Switch to a different system prompt for this room. Use '-' to switch to the backend's default system prompt.")
     async def system(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -174,9 +174,9 @@ class LlmBot(Plugin):
         await db.clear_context(self.database, evt.room_id)
         await evt.react(self.get_done_emoji())
 
-    @llm_command.subcommand(help="Ask the LLM to predict the completion (once) of a given prompt")
-    @command.argument("max_tokens")
     @command.argument("prompt", pass_raw=True)
+    @command.argument("max_tokens")
+    @llm_command.subcommand(help="Ask the LLM to predict the completion (once) of a given prompt")
     async def complete(self, evt: MessageEvent, max_tokens: str, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -209,8 +209,8 @@ class LlmBot(Plugin):
 
     #@event.on(EventType.ROOM_MESSAGE)
     # TODO Multi-modal input
-    @llm_command.subcommand(help="Ask the LLM to start or continue the current room's chat")
     @command.argument("prompt", pass_raw=True)
+    @llm_command.subcommand(help="Ask the LLM to start or continue the current room's chat")
     async def chat(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -242,8 +242,8 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
-    @llm_command.subcommand(help="Ask the LLM to count the tokens in a given prompt")
     @command.argument("prompt", pass_raw=True)
+    @llm_command.subcommand(help="Ask the LLM to count the tokens in a given prompt")
     async def count(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -270,15 +270,18 @@ class LlmBot(Plugin):
             await self.client.set_typing(evt.room_id, 0)
     
     #@event.on(EventType.ROOM_MESSAGE)
-    @llm_command.subcommand(help="Ask the LLM to generate a picture from the prompt the user provides")
-    @command.argument("size")
-    @command.argument("output_format")
     @command.argument("prompt", pass_raw=True)
+    @command.argument("output_format")
+    @command.argument("size")
+    @llm_command.subcommand(help="Ask the LLM to generate a picture from the prompt the user provides")
     async def image(self, evt: MessageEvent, size: str, output_format: str, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
-        if evt.content.body.startswith("!"):
+        if not prompt:
+            self.log.warn("User didn't provide a prompt")
+            return
+        if prompt.startswith("!"):
             return
         room = await self.get_room(evt.room_id)
         await db.append_context(self.database, room.room_id, "user", evt.content.body)
@@ -292,28 +295,20 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
 
             if not size:
-                raise ValueError(
-                    "Size not specified by user"
-                )
+                self.log.warn("Size not specified by user")
+                return
             if not output_format:
-                raise ValueError(
-                    "Image output format not specified by user"
-                )
-            if not prompt:
-                raise ValueError(
-                    "Prompt not specified by user"
-                )
+                self.log.warn("Image output format not specified by user")
+                return
             
             images = await backend.create_image_generation(self.http, prompt, 1, size, output_format, "100")
             if not images.url or not images.url[0] or not images.url[0].get("b64_json"):
-                raise ValueError(
-                    "Backend image API returned an empty or malformed response"
-                )
+                self.log.warn("Backend image API returned an empty or malformed response")
+                return
 
             if not images["output_format"]:
-                raise ValueError(
-                    "Backend image API did not specify the output format"
-                )
+                self.log.warn("Backend image API did not specify the output format")
+                return
 
             image_data = []
             for image in images.url:
@@ -325,7 +320,8 @@ class LlmBot(Plugin):
                 )
 
             if not image_data:
-                raise ValueError("Backend image API returned no images")
+                self.log.warn("Backend image API returned no images")
+                return
             
             # TODO Upload/return multiple images when supported
             # Backend has possibly returned multiple images, but Matrix does not currently
@@ -352,15 +348,15 @@ class LlmBot(Plugin):
                 ),
             )
 
-            await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {evt.content.body}")
+            await db.append_context(self.database, room.room_id, "user", f"Backend generated image from prompt: {prompt}")
             #await evt.redact(react_id)
             await evt.react(self.get_done_emoji())
             await evt.reply(content)
         finally:
             await self.client.set_typing(evt.room_id, 0)
-    
-    @image.subcommand(help="Ask the LLM to generate an edited picture based on the image and prompt the user provides")
+
     @command.argument("prompt", pass_raw=True)
+    @image.subcommand(help="Ask the LLM to generate an edited picture based on the image and prompt the user provides")
     async def edit(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
