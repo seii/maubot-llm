@@ -56,7 +56,7 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.get(url, headers=headers) as resp:
-            status = f"{resp["status"]} {resp["reason"]}"
+            status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
@@ -92,7 +92,7 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            status = f"{resp["status"]} {resp["reason"]}"
+            status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
@@ -127,7 +127,7 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            status = f"{resp["status"]} {resp["reason"]}"
+            status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
@@ -162,7 +162,7 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            status = f"{resp["status"]} {resp["reason"]}"
+            status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
@@ -198,7 +198,7 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            status = f"{resp["status"]} {resp["reason"]}"
+            status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
@@ -232,7 +232,7 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
-            status = f"{resp["status"]} {resp["reason"]}"
+            status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
@@ -282,7 +282,7 @@ class BasicOpenAIBackend(Backend):
         if self.authorization is not None:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, data=form) as resp:
-            status = f"{resp["status"]} {resp["reason"]}"
+            status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
