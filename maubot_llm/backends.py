@@ -260,13 +260,13 @@ class BasicOpenAIBackend(Backend):
                 else:
                     error = await resp.text()
 
-            return CreateImageGenerations(
-                data=result,
-                output_format=format,
-                status=status,
-                model=respbody.get("model", None),
-                error=error
-            )
+                return CreateImageGenerations(
+                    data=result,
+                    output_format=format,
+                    status=status,
+                    model=respbody.get("model", None),
+                    error=error
+                )
 
     async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> CreateImageEdit:
         url = f"{self.img_base_url}/v1/images/edits"
@@ -309,13 +309,13 @@ class BasicOpenAIBackend(Backend):
                     result = b64_imgs[0]["b64_json"] if b64_imgs else ""
                 else:
                     error = await resp.text()
-            # Returns the entire `data` entry because it may contain multiple images
-            return CreateImageEdit(
-                data=result,
-                status=status,
-                model=respbody.get("model", None),
-                error=error
-            )
+                # Returns the entire `data` entry because it may contain multiple images
+                return CreateImageEdit(
+                    data=result,
+                    status=status,
+                    model=respbody.get("model", None),
+                    error=error
+                )
 
 
 class OpenAIBackend(BasicOpenAIBackend):
