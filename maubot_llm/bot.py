@@ -356,8 +356,8 @@ class LlmBot(Plugin):
             await self.client.set_typing(evt.room_id, 0)
 
     @command.argument("prompt", pass_raw=True)
-    @image.subcommand(help="Ask the LLM to generate an edited picture based on the image and prompt the user provides")
-    async def edit(self, evt: MessageEvent, prompt: str) -> None:
+    @llm_command.subcommand(help="Ask the LLM to generate an altered picture based on the image and prompt the user provides")
+    async def alter(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
