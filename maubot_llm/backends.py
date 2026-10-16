@@ -244,6 +244,7 @@ class BasicOpenAIBackend(Backend):
 
                 # Empty "data" field is valid, missing field is not
                 if respbody and respbody["data"]:
+                    format = respbody.output_format
                     # respbody["data"] may contain multiple images, pull those out
                     b64_imgs = []
                     for body in respbody["data"]:
@@ -256,11 +257,12 @@ class BasicOpenAIBackend(Backend):
                     #   image will be sent
                     result = b64_imgs[0]["b64_json"] if b64_imgs else ""
                 else:
+                    format = None
                     error = await resp.text()
 
             return CreateImageGenerations(
                 data=result,
-                output_format=respbody["output_format"] if respbody else None,
+                output_format=format,
                 status=status,
                 model=respbody.get("model", None),
                 error=error
