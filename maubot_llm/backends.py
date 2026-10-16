@@ -1,6 +1,6 @@
 from typing import List, Optional
 from aiohttp import ClientSession
-from _backends import (
+from maubot_llm._backends import (
     Models,
     Completions,
     ChatCompletion,
