@@ -28,10 +28,10 @@ async def upgrade_v1(conn: Connection) -> None:
 
 class Room:
     def __init__(self) -> None:
-        self.room_id = None
-        self.backend = None
-        self.model = None
-        self.system_prompt = None
+        self.room_id = ""
+        self.backend = ""
+        self.model = ""
+        self.system_prompt = ""
 
 
 async def fetch_room(db: Database, room_id: str) -> Optional[Room]:

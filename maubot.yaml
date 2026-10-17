@@ -1,6 +1,6 @@
 maubot: 0.1.0
 id: net.jiyuu_ni.maubot_llm
-version: 1.0.6
+version: 1.0.7
 license: MIT
 modules:
   - maubot_llm
