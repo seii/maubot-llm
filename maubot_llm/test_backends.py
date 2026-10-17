@@ -23,12 +23,12 @@ class TestBackends(unittest.IsolatedAsyncioTestCase):
             context = [{"role": "user", "content": "Please say the word 'hello' in lowercase and nothing else."}]
             system = "You are a helpful digital assistant."
             completion = await backend.create_chat_completion(http, context=context, system=system, model=BASIC_OPENAI_MODEL)
-            self.assertEqual(completion.message["role"], "assistant")
-            self.assertRegex(completion.message["content"], r".*hello.*")
-            self.assertEqual(completion.finish_reason, "stop")
+            self.assertEqual(completion.data["role"], "assistant")
+            self.assertRegex(completion.data["content"], r".*hello.*")
+            self.assertEqual(completion.error, "")
 
             models = await backend.fetch_models(http)
-            self.assertGreater(len(models), 0)
+            self.assertGreater(len(models.data), 0)
     
     async def test_openai(self) -> None:
         if OPENAI_API_KEY is None:
@@ -38,12 +38,12 @@ class TestBackends(unittest.IsolatedAsyncioTestCase):
         async with aiohttp.ClientSession() as http:
             context = [{"role": "user", "content": "Please say the word 'hello' in lowercase and nothing else."}]
             completion = await backend.create_chat_completion(http, context=context, model=OPENAI_MODEL)
-            self.assertEqual(completion.message["role"], "assistant")
-            self.assertRegex(completion.message["content"], r".*hello.*")
-            self.assertEqual(completion.finish_reason, "stop")
+            self.assertEqual(completion.data["role"], "assistant")
+            self.assertRegex(completion.data["content"], r".*hello.*")
+            self.assertEqual(completion.error, "")
 
             models = await backend.fetch_models(http)
-            self.assertGreater(len(models), 0)
+            self.assertGreater(len(models.data), 0)
     
     async def test_anthropic(self) -> None:
         if ANTHROPIC_API_KEY is None:
@@ -53,9 +53,9 @@ class TestBackends(unittest.IsolatedAsyncioTestCase):
         async with aiohttp.ClientSession() as http:
             context = [{"role": "user", "content": "Please say the word 'hello' in lowercase and nothing else."}]
             completion = await backend.create_chat_completion(http, context=context, model=ANTHROPIC_MODEL)
-            self.assertEqual(completion.message["role"], "assistant")
-            self.assertRegex(completion.message["content"], r".*hello.*")
-            self.assertEqual(completion.finish_reason, "end_turn")
+            self.assertEqual(completion.data["role"], "assistant")
+            self.assertRegex(completion.data["content"], r".*hello.*")
+            self.assertEqual(completion.error, "")
 
 if __name__ == "__main__":
     unittest.main()

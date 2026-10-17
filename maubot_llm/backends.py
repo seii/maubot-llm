@@ -17,19 +17,19 @@ class Backend:
         self.default_model = cfg.get("default_model")
         self.default_system_prompt = cfg.get("default_system_prompt")
 
-    async def fetch_models(self, http: ClientSession) -> List[str]:
+    async def fetch_models(self, http: ClientSession) -> Models:
         raise NotImplementedError()
 
-    async def create_completion(self, http: ClientSession, prompt: str, model: Optional[str] = None) -> Completions:
+    async def create_completion(self, http: ClientSession, prompt: str, max_tokens: int, model: Optional[str] = None) -> Completions:
         raise NotImplementedError()
 
     async def create_chat_completion(self, http: ClientSession,  context: List[dict], system: Optional[str] = None, model: Optional[str] = None) -> ChatCompletion:
         raise NotImplementedError()
 
-    async def create_response(self, http: ClientSession, prompt: str, model: Optional[str] = None) -> Responses:
+    async def create_response(self, http: ClientSession, context: List[dict], model: Optional[str] = None) -> Responses:
         raise NotImplementedError()
     
-    async def get_response_input_tokens(self, http: ClientSession, response_id: str) -> ResponsesInputTokens:
+    async def get_response_input_tokens(self, http: ClientSession, input: str, model: Optional[str] = None) -> ResponsesInputTokens:
         raise NotImplementedError()
 
     async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: str, model: Optional[str] = None) -> CreateImageGenerations:
@@ -48,19 +48,19 @@ class BasicOpenAIBackend(Backend):
         if cfg["api_key"] is not None:
             self.authorization = f"Bearer {cfg['api_key']}"
         else:
-            self.authorization = None
+            self.authorization = ""
     
     async def fetch_models(self, http: ClientSession) -> Models:
         url = f"{self.base_url}/v1/models"
         headers = {}
-        if self.authorization is not None:
+        if self.authorization:
             headers["Authorization"] = self.authorization
         async with http.get(url, headers=headers) as resp:
             status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
-            result = None
+            result = []
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -73,7 +73,7 @@ class BasicOpenAIBackend(Backend):
                     error = await resp.text()
             return Models(
                 data=result,
-                object=respbody["object_"] if respbody["object_"] else "list",
+                object_=respbody["object_"] if respbody["object_"] else "list",
                 status=status,
                 error=error
             )
@@ -84,19 +84,19 @@ class BasicOpenAIBackend(Backend):
         if model is not None:
             reqbody["model"] = model
         if max_tokens > 0:
-            reqbody["max_tokens"] = max_tokens
+            reqbody["max_tokens"] = f"{max_tokens}"
         else:
-            reqbody["max_tokens"] = 1
+            reqbody["max_tokens"] = "1"
 
         headers = {}
-        if self.authorization is not None:
+        if self.authorization:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
             status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
-            result = None
+            result = ""
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -116,22 +116,22 @@ class BasicOpenAIBackend(Backend):
             )
 
     # TODO Multi-modal input
-    async def create_chat_completion(self, http: ClientSession, context: List[dict], system: Optional[str] = None, model: Optional[str] = None) -> ChatCompletion:
+    async def create_chat_completion(self, http: ClientSession, context: List[dict], system: Optional[str] = "", model: Optional[str] = "") -> ChatCompletion:
         url = f"{self.base_url}/v1/chat/completions"
         reqbody = {"messages": context}
-        if system is not None:
+        if system:
             reqbody["messages"].insert(0, {"role": "system", "content": system})
-        if model is not None:
+        if model:
             reqbody["model"] = model
         headers = {}
-        if self.authorization is not None:
+        if self.authorization:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
             status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
-            result = None
+            result = {}
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -159,14 +159,14 @@ class BasicOpenAIBackend(Backend):
         if model is not None:
             reqbody["model"] = model
         headers = {}
-        if self.authorization is not None:
+        if self.authorization:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
             status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
-            result = None
+            result = ""
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -195,14 +195,14 @@ class BasicOpenAIBackend(Backend):
         if model is not None:
             reqbody["model"] = model
         headers = {}
-        if self.authorization is not None:
+        if self.authorization:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
             status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
-            result = None
+            result = ""
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -229,15 +229,15 @@ class BasicOpenAIBackend(Backend):
         if model is not None:
             reqbody["model"] = model
         headers = {}
-        if self.authorization is not None:
+        if self.authorization:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, json=reqbody) as resp:
             status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
-            result = None
-            format = None
+            result = ""
+            format = ""
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -260,12 +260,12 @@ class BasicOpenAIBackend(Backend):
                 else:
                     error = await resp.text()
 
-                return CreateImageGenerations(
-                    data=result,
-                    output_format=format,
-                    status=status,
-                    model=respbody.get("model", None),
-                    error=error
+            return CreateImageGenerations(
+                data=result,
+                output_format=format,
+                status=status,
+                model=respbody.get("model", None),
+                error=error
                 )
 
     async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> CreateImageEdit:
@@ -281,14 +281,14 @@ class BasicOpenAIBackend(Backend):
         if model is not None:
             form.add_field("model", model)
         headers = {}
-        if self.authorization is not None:
+        if self.authorization:
             headers["Authorization"] = self.authorization
         async with http.post(url, headers=headers, data=form) as resp:
             status = f"{resp.status} {resp.reason}"
 
             # Any errors should populate `error` with the response's body
             error = None
-            result = None
+            result = ""
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -309,13 +309,13 @@ class BasicOpenAIBackend(Backend):
                     result = b64_imgs[0]["b64_json"] if b64_imgs else ""
                 else:
                     error = await resp.text()
-                # Returns the entire `data` entry because it may contain multiple images
-                return CreateImageEdit(
-                    data=result,
-                    status=status,
-                    model=respbody.get("model", None),
-                    error=error
-                )
+            # Returns the entire `data` entry because it may contain multiple images
+            return CreateImageEdit(
+                data=result,
+                status=status,
+                model=respbody.get("model", None),
+                error=error
+            )
 
 
 class OpenAIBackend(BasicOpenAIBackend):
@@ -332,7 +332,7 @@ class AnthropicBackend(Backend):
         self.api_key = cfg["api_key"]
         self.max_tokens = cfg["max_tokens"]
 
-    async def create_chat_completion(self, http: ClientSession,  context: List[dict], system: Optional[str] = None, model: Optional[str] = None) -> ChatCompletion:
+    async def create_chat_completion(self, http: ClientSession,  context: List[dict], system: Optional[str] = "", model: Optional[str] = "") -> ChatCompletion:
         url = f"{self.base_url}/v1/messages"
         reqbody = {"messages": context}
         if system is not None:
@@ -346,9 +346,12 @@ class AnthropicBackend(Backend):
         async with http.post(url, headers=headers, json=reqbody) as resp:
             # TODO error handling
             respbody = await resp.json()
+            error=""
+            status=""
             text = "\n\n".join(c["text"] for c in respbody["content"])
             return ChatCompletion(
-                message=dict(role="assistant", content=text),
-                finish_reason=respbody["stop_reason"],
-                model=respbody["model"]
+                data=dict(role="assistant", content=text),
+                status=status,
+                model=respbody["model"],
+                error=error
             )

@@ -7,7 +7,7 @@ from typing import List, Optional
 #   `error` = Raw body text from aiohttp (only populate in case of error)
 #   Any other parameters are custom to each class
 class Models:
-    def __init__(self, data: List[dict], status: str, object_: str = "list", error: Optional[str] = None) -> None:
+    def __init__(self, data: List[str], status: str, object_: str = "list", error: Optional[str] = None) -> None:
         self.data = data
         self.status = status
         self.object_ = object_
@@ -71,7 +71,7 @@ class Responses:
 
 
 class ResponsesInputTokens:
-    def __init__(self, data: int, status: str, object_: str, error: Optional[str] = None) -> None:
+    def __init__(self, data: str, status: str, object_: str, error: Optional[str] = None) -> None:
         self.data = data
         self.status = status
         self.object_ = object_

@@ -60,7 +60,7 @@ class LlmBot(Plugin):
 
     async def get_room(self, room_id: str) -> db.Room:
         room = await db.fetch_room(self.database, room_id)
-        if room is None:
+        if not room:
             room = db.Room()
             room.room_id = room_id
             await db.upsert_room(self.database, room)
@@ -101,11 +101,11 @@ class LlmBot(Plugin):
         all_models = "unknown"
         try:
             result = await backend.fetch_models(self.http)
-            if not result.error and result["data"]:
-                all_models = ", ".join(result["data"])
+            if not result.error and result.data:
+                all_models = ", ".join(result.data)
             else:
-                self.log.warn(result["status"])
-                self.log.warn(result["error"])
+                self.log.warn(result.status)
+                self.log.warn(result.error)
         except:
             pass
 
@@ -160,7 +160,7 @@ class LlmBot(Plugin):
         # TODO validate model when the backend supports it
         room = await self.get_room(evt.room_id)
         if model == "-":
-            room.model = None
+            room.model = ""
         else:
             room.model = model
         await db.upsert_room(self.database, room)
@@ -176,7 +176,7 @@ class LlmBot(Plugin):
         # TODO validate model when the backend supports it
         room = await self.get_room(evt.room_id)
         if prompt == "-":
-            room.system_prompt = None
+            room.system_prompt = ""
         else:
             room.system_prompt = prompt
         await db.upsert_room(self.database, room)
@@ -343,7 +343,7 @@ class LlmBot(Plugin):
             images = await backend.create_image_generation(self.http, prompt, 1, size, output_format, "100")
 
             if images and not images.error:
-                if not images["data"]:
+                if not images.data:
                     self.log.warn("Backend image API returned an empty or malformed response")
                     return
 
