@@ -32,7 +32,7 @@ class Backend:
     async def get_response_input_tokens(self, http: ClientSession, input: str, model: Optional[str] = None) -> ResponsesInputTokens:
         raise NotImplementedError()
 
-    async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: int) -> CreateImageGenerations:
+    async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: int, model: Optional[str] = None) -> CreateImageGenerations:
         raise NotImplementedError()
     
     async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> CreateImageEdit:

@@ -340,7 +340,7 @@ class LlmBot(Plugin):
                 self.log.warn("Image output format not specified by user")
                 return
 
-            images = await backend.create_image_generation(self.http, prompt, 1, size, output_format, "100")
+            images = await backend.create_image_generation(self.http, prompt, 1, size, output_format, 100)
 
             if images and not images.error:
                 if not images.data:
