@@ -264,7 +264,6 @@ class BasicOpenAIBackend(Backend):
                 data=result,
                 output_format=format,
                 status=status,
-                model=respbody.get("model", None),
                 error=error
                 )
 

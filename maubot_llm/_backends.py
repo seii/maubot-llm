@@ -86,18 +86,16 @@ class ResponsesInputTokens:
 
 
 class CreateImageGenerations:
-    def __init__(self, data: str, output_format: str, status: str, model: Optional[str], error: Optional[str] = None) -> None:
+    def __init__(self, data: str, output_format: str, status: str, error: Optional[str] = None) -> None:
         self.data = data
         self.output_format = output_format
         self.status = status
-        self.model = model
         self.error = error
     
     def __eq__(self, other) -> bool:
         return (self.data == other.data and
                 self.output_format == other.output_format and
                 self.status == other.status and
-                self.model == other.model and
                 self.error == other.error
                 )
 
