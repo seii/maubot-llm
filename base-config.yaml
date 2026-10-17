@@ -1,5 +1,8 @@
 # Set allowlist to `false` to allow anyone; otherwise add entries such as "@user:example.com"
 allowlist: []
+# Same format as allowlist. Only these users can perform bot system calls
+#   Set to `false` if you wish to allow system calls to all allowlist users
+adminlist: []
 default_backend: "local"
 backends:
   local:
@@ -25,9 +28,11 @@ customization:
   # Set this string to use a custom "!<trigger>" for the bot
   #   Default: "!llm"
   custom_trigger: null
-  # Default emoji: ✅
+  # Default emoji: ⏳
   wait_reaction: ""
   # Default emoji: ⚠️
   error_reaction: ""
-  # Default emoji: ⏳
+  # Default emoji: 🚫
+  denied_reaction: ""
+  # Default emoji: ✅
   done_reaction: ""
