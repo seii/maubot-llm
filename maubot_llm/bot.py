@@ -21,6 +21,7 @@ from mautrix.util.async_db import UpgradeTable
 class Config(BaseProxyConfig):
     def do_update(self, helper: ConfigUpdateHelper) -> None:
         helper.copy("allowlist")
+        helper.copy("adminlist")
         helper.copy("default_backend")
         helper.copy("backends")
         helper.copy("customization")
@@ -48,6 +49,11 @@ class LlmBot(Plugin):
 
         return self.config["customization"]["error_reaction"] if self.config["customization"] and self.config["customization"]["error_reaction"] else error
 
+    def get_denied_emoji(self) -> str:
+        denied = "🚫"
+
+        return self.config["customization"]["denied_reaction"] if self.config["customization"] and self.config["customization"]["denied_reaction"] else denied
+
     def get_done_emoji(self) -> str:
         done = "✅"
 
@@ -57,6 +63,11 @@ class LlmBot(Plugin):
         if self.config["allowlist"] == False:
             return True
         return sender in self.config["allowlist"]
+
+    def is_admin(self, sender: str) -> bool:
+        if self.config["adminlist"] == False:
+            return True
+        return sender in self.config["adminlist"]
 
     async def get_room(self, room_id: str) -> db.Room:
         room = await db.fetch_room(self.database, room_id)
@@ -68,7 +79,7 @@ class LlmBot(Plugin):
 
     def get_backend(self, room: db.Room) -> Backend:
         key = room.backend
-        if key is None:
+        if not key:
             key = self.config["default_backend"]
         cfg = self.config["backends"][key]
         cfg["key"] = key
@@ -98,16 +109,19 @@ class LlmBot(Plugin):
         backend = self.get_backend(room)
         all_backends = ", ".join(self.config["backends"].keys())
 
-        all_models = "unknown"
-        try:
-            result = await backend.fetch_models(self.http)
-            if not result.error and result.data:
-                all_models = ", ".join(result.data)
-            else:
-                self.log.warn(result.status)
-                self.log.warn(result.error)
-        except:
-            pass
+        all_models = "<hidden>"
+
+        # Only admins can view full list of available models
+        if self.isadmin(evt.sender):
+            try:
+                result = await backend.fetch_models(self.http)
+                if not result.error and result.data:
+                    all_models = ", ".join(result.data)
+                else:
+                    self.log.warn(result.status)
+                    self.log.warn(result.error)
+            except:
+                pass
 
         items = []
         items.append(f"- Backend: {backend.cfg['key']} (available: {all_backends})")
@@ -118,12 +132,18 @@ class LlmBot(Plugin):
         else:
             items.append("- Model not specified")
         items[-1] += f" (available: {all_models})"
+
+        current_prompt = "- System Prompt: <hidden>"
         if room.system_prompt:
-            items.append(f"- System Prompt: {room.system_prompt}")
+            if self.isadmin(evt.sender):
+                current_prompt = f"- System Prompt: {room.system_prompt}"
         elif backend.default_system_prompt:
-            items.append(f"- System Prompt (backend default): {backend.default_system_prompt}")
+            if self.isadmin(evt.sender):
+                current_prompt = f"- System Prompt (backend default): {backend.default_system_prompt}"
         else:
-            items.append("- System Prompt not specified")
+            if self.isadmin(evt.sender):
+                current_prompt = "- System Prompt not specified"
+        items.append(current_prompt)
         items.append(f"- Context Message Count: {len(context)}")
         msg = "\n".join(items)
 
@@ -138,6 +158,10 @@ class LlmBot(Plugin):
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
+            return
+        if not self.isadmin(evt.sender):
+            self.log.warn(f"user out of their lane: sender={evt.sender}")
+            await evt.react(self.get_denied_emoji())
             return
         if key not in self.config["backends"].keys():
             all_backends = ", ".join(self.config["backends"].keys())
@@ -157,6 +181,10 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
             return
+        if not self.isadmin(evt.sender):
+            self.log.warn(f"user out of their lane: sender={evt.sender}")
+            await evt.react(self.get_denied_emoji())
+            return
         # TODO validate model when the backend supports it
         room = await self.get_room(evt.room_id)
         if model == "-":
@@ -173,6 +201,10 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
             return
+        if not self.isadmin(evt.sender):
+            self.log.warn(f"user out of their lane: sender={evt.sender}")
+            await evt.react(self.get_denied_emoji())
+            return
         # TODO validate model when the backend supports it
         room = await self.get_room(evt.room_id)
         if prompt == "-":
@@ -187,6 +219,10 @@ class LlmBot(Plugin):
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
+            return
+        if not self.isadmin(evt.sender):
+            self.log.warn(f"user out of their lane: sender={evt.sender}")
+            await evt.react(self.get_denied_emoji())
             return
         await db.clear_context(self.database, evt.room_id)
         await evt.react(self.get_done_emoji())
