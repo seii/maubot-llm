@@ -245,7 +245,7 @@ class BasicOpenAIBackend(Backend):
 
                 # Empty "data" field is valid, missing field is not
                 if respbody and respbody["data"]:
-                    format = respbody.output_format
+                    format = respbody["output_format"]
                     # respbody["data"] may contain multiple images, pull those out
                     b64_imgs = []
                     for body in respbody["data"]:
