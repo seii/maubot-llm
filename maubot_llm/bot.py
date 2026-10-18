@@ -545,18 +545,22 @@ class LlmBot(Plugin):
     async def handle_image_caption(self, evt: MessageEvent) -> None:
         # Only handle image messages here; text commands are handled above.
         if evt.content.msgtype != MessageType.IMAGE:
+            self.log.warn("BOT: Message wasn't an image")
             return
 
         body = evt.content.body
         filename = getattr(evt.content, "filename", "")
 
+        cmd_name = self.get_command_name
         # Ignore ordinary image uploads without a command caption.
-        if not body.startswith(f"!{self.get_command_name}"):
+        if not body.startswith(f"!{cmd_name}"):
+            self.log.warn(f"BOT: Body {body} didn't start with !{cmd_name}")
             return
 
         # If filename equals body, Matrix defines body as the filename,
         # rather than a media caption.
         if filename and filename == body:
+            self.log.warn(f"BOT: Filename {filename} equalled body {body}")
             return
 
         self.log.info("Received image caption: %s", body)
