@@ -438,7 +438,8 @@ class LlmBot(Plugin):
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             return
-        if evt.content.body.startswith("!"):
+        if not prompt or prompt.startswith("!"):
+            self.log.warn("No prompt provided by user")
             return
         if not evt.content or evt.content["msgtype"] != "m.image":
             self.log.warn("Failed to parse: message does not contain an image")
@@ -451,10 +452,6 @@ class LlmBot(Plugin):
             return
 
         room = await self.get_room(evt.room_id)
-
-        if not prompt:
-            self.log.warn("No prompt provided by user")
-            return
 
         await db.append_context(self.database, room.room_id, "user", prompt)
         react_id = await evt.react(self.get_wait_emoji())
