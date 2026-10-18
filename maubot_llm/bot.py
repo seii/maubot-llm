@@ -1,4 +1,5 @@
 import base64
+import shlex
 
 from maubot import Plugin
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
@@ -273,7 +274,6 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
-    #@event.on(EventType.ROOM_MESSAGE)
     # TODO Multi-modal input
     @command.argument("prompt", pass_raw=True)
     @llm_command.subcommand(help="Ask the LLM to start or continue the current room's chat")
@@ -348,7 +348,6 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
-    #@event.on(EventType.ROOM_MESSAGE)
     @command.argument("prompt", pass_raw=True)
     @command.argument("output_format")
     @command.argument("size")
@@ -432,8 +431,8 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
-    @command.argument("prompt", pass_raw=True)
-    @llm_command.subcommand(help="Ask the LLM to generate an altered picture based on the image and prompt the user provides")
+    #@command.argument("prompt", pass_raw=True)
+    #@llm_command.subcommand(help="Ask the LLM to generate an altered picture based on the image and prompt the user provides")
     async def alter(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -542,6 +541,42 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
+    @event.on(EventType.ROOM_MESSAGE)
+    async def handle_image_caption(self, evt: MessageEvent) -> None:
+        # Only handle image messages here; text commands are handled above.
+        if evt.content.msgtype != MessageType.IMAGE:
+            return
+
+        body = evt.content.body
+        filename = getattr(evt.content, "filename", "")
+
+        # Ignore ordinary image uploads without a command caption.
+        if not body.startswith(f"!{self.get_command_name}"):
+            return
+
+        # If filename equals body, Matrix defines body as the filename,
+        # rather than a media caption.
+        if filename and filename == body:
+            return
+
+        self.log.info("Received image caption: %s", body)
+
+        try:
+            parts = shlex.split(body)
+        except ValueError:
+            await evt.reply("Could not parse the image caption.")
+            return
+
+        # Expected: !<command name> testsub <subarg>
+        if len(parts) >= 3 and parts[1] == "testsub":
+            await self.run_testsub(evt, parts[2])
+        elif len(parts) == 1:
+            await evt.reply(f"Image received with caption: !{self.get_command_name}")
+        else:
+            await evt.reply(
+                f"Usage: !{self.get_command_name} testsub <subarg>"
+            )
+    
     @classmethod
     def get_db_upgrade_table(cls) -> UpgradeTable | None:
         return db.upgrade_table
