@@ -307,6 +307,7 @@ class BasicOpenAIBackend(Backend):
             error = None
             result = ""
             format = ""
+            model = None
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -325,6 +326,8 @@ class BasicOpenAIBackend(Backend):
                     #   support posting multiple images at once so only the first returned
                     #   image will be sent
                     result = b64_imgs[0]["b64_json"] if b64_imgs else ""
+
+                    model = respbody.get("model", None)
                 else:
                     error = await resp.text()
             # Returns the entire `data` entry because it may contain multiple images
@@ -332,7 +335,7 @@ class BasicOpenAIBackend(Backend):
                 data=result,
                 output_format=format,
                 status=status,
-                model=respbody.get("model", None),
+                model=model,
                 error=error
             )
 
