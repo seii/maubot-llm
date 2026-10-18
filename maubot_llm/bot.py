@@ -446,7 +446,7 @@ class LlmBot(Plugin):
             self.log.warn("Failed to parse: message does not contain an image")
             return
         else:
-            self.log.warn(f"evt.content detected was: {evt.get("content", '(Not detected)')}")
+            self.log.warn(f"evt.content detected was: {evt.get("msgtype", '(Not detected)')}")
         # Matrix media captions use body as the caption when filename
         #   is present and differs from body. Clients vary on how well
         #   (or if at all) they support media captions.
@@ -570,6 +570,7 @@ class LlmBot(Plugin):
             else:
                 await evt.react(self.get_error_emoji())
                 self.log.warn(response.status)
+                self.log.warn(f"format: {response.output_format}")
                 self.log.warn(response.error)
         finally:
             await self.client.set_typing(evt.room_id, 0)
