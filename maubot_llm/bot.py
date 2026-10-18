@@ -97,7 +97,7 @@ class LlmBot(Plugin):
             return AnthropicBackend(cfg)
         raise ValueError(f"unknown backend type {cfg['type']}")
 
-    @command.new(name=get_command_name, msgtypes=(MessageType.TEXT, MessageType.IMAGE), require_subcommand=True)
+    @command.new(name=get_command_name, require_subcommand=True)
     async def llm_command(self, evt: MessageEvent) -> None:
         pass
 
