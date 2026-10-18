@@ -293,7 +293,7 @@ class BasicOpenAIBackend(Backend):
             content_type=image.mime_type,
         )
         form.add_field("n", "1")
-        form.add_field("output_format", f"{image.filename[image.filename.find(".")+1:].split()[0]}")
+        form.add_field("output_format", f"{image.mime_type[image.mime_type.find("/")+1:].split()[0]}")
         # Optional because Stable Diffusion can't currently specify a model on request
         if model is not None:
             form.add_field("model", model)

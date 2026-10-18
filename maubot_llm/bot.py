@@ -446,7 +446,7 @@ class LlmBot(Plugin):
             self.log.warn("Failed to parse: message does not contain an image")
             return
         else:
-            self.log.warn(f"evt.content detected was: {evt.get("msgtype", '(Not detected)')}")
+            self.log.warn(f"evt.content detected was: {evt.content.get("msgtype", '(Not detected)')}")
         # Matrix media captions use body as the caption when filename
         #   is present and differs from body. Clients vary on how well
         #   (or if at all) they support media captions.
