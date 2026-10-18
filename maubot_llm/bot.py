@@ -440,9 +440,12 @@ class LlmBot(Plugin):
         if not prompt or prompt.startswith("!"):
             self.log.warn("No prompt provided by user")
             return
-        if not evt.content or evt.content["msgtype"] != "m.image":
+        #if not evt.content or evt.content["msgtype"] != "m.image":
+        if not evt.content:
             self.log.warn("Failed to parse: message does not contain an image")
             return
+        else:
+            self.log.warn(f"evt.content detected was: {evt.get("content", '(Not detected)')}")
         # Matrix media captions use body as the caption when filename
         #   is present and differs from body. Clients vary on how well
         #   (or if at all) they support media captions.
