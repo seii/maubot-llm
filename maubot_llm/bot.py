@@ -117,7 +117,7 @@ class LlmBot(Plugin):
         all_models = "<hidden>"
 
         # Only admins can view full list of available models
-        if self.isadmin(evt.sender):
+        if self.is_admin(evt.sender):
             try:
                 result = await backend.fetch_models(self.http)
                 if not result.error and result.data:
@@ -140,13 +140,13 @@ class LlmBot(Plugin):
 
         current_prompt = "- System Prompt: <hidden>"
         if room.system_prompt:
-            if self.isadmin(evt.sender):
+            if self.is_admin(evt.sender):
                 current_prompt = f"- System Prompt: {room.system_prompt}"
         elif backend.default_system_prompt:
-            if self.isadmin(evt.sender):
+            if self.is_admin(evt.sender):
                 current_prompt = f"- System Prompt (backend default): {backend.default_system_prompt}"
         else:
-            if self.isadmin(evt.sender):
+            if self.is_admin(evt.sender):
                 current_prompt = "- System Prompt not specified"
         items.append(current_prompt)
         items.append(f"- Context Message Count: {len(context)}")
@@ -164,7 +164,7 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
             return
-        if not self.isadmin(evt.sender):
+        if not self.is_admin(evt.sender):
             self.log.warn(f"user out of their lane: sender={evt.sender}")
             await evt.react(self.get_denied_emoji())
             return
@@ -186,7 +186,7 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
             return
-        if not self.isadmin(evt.sender):
+        if not self.is_admin(evt.sender):
             self.log.warn(f"user out of their lane: sender={evt.sender}")
             await evt.react(self.get_denied_emoji())
             return
@@ -206,7 +206,7 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
             return
-        if not self.isadmin(evt.sender):
+        if not self.is_admin(evt.sender):
             self.log.warn(f"user out of their lane: sender={evt.sender}")
             await evt.react(self.get_denied_emoji())
             return
@@ -225,7 +225,7 @@ class LlmBot(Plugin):
             self.log.warn(f"stranger danger: sender={evt.sender}")
             await evt.react(self.get_error_emoji())
             return
-        if not self.isadmin(evt.sender):
+        if not self.is_admin(evt.sender):
             self.log.warn(f"user out of their lane: sender={evt.sender}")
             await evt.react(self.get_denied_emoji())
             return
