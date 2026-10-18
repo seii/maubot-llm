@@ -22,6 +22,7 @@ from maubot_llm.backends import (
     AnthropicBackend)
 from maubot_llm import db
 from mautrix.util.async_db import UpgradeTable
+from mautrix.crypto.attachments import decrypt_attachment
 
 
 class Config(BaseProxyConfig):
@@ -466,39 +467,68 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
             model = room.model or backend.default_model
 
-            # Normal, unencrypted Matrix images use "url" with an MXC URI.
-            #   Encrypted media uses "file" and needs decryption first.
-            mxc_url = evt.content.get("url")
-            if not mxc_url:
-                await evt.reply("Please send an unencrypted image with a caption.")
-                return
-            
-            mime_type = evt.content["info"].get("mimetype", "")
-            filename=""
+            info = evt.content.info
+            mime_type = getattr(info, "mimetype", None) or ""
 
-            # Restrict the accepted image formats.
+            # Restrict accepted image formats.
             mime_extensions = {
                 "image/png": ".png",
                 "image/jpeg": ".jpg",
                 "image/webp": ".webp",
             }
-            extension = mime_extensions.get(mime_type, "")
+            extension = mime_extensions.get(mime_type)
             if not extension:
                 await evt.reply("Please send a PNG, JPEG, or WebP image.")
                 return
-            
-            filename=f"input{extension}"
 
-            # Download the original image bytes from the Matrix media
-            # repository, not the thumbnail.
+            filename = f"input{extension}"
+
+            # Normal, unencrypted Matrix images use "url" with an MXC URI.
+            #   Encrypted media uses "file" and needs decryption first.
+            #   Check to see which we're dealing with
+            encrypted_file = getattr(evt.content, "file", None)
+
+            if encrypted_file:
+                mxc_url = encrypted_file.url
+            else:
+                mxc_url = getattr(evt.content, "url", None)
+
+            if not mxc_url:
+                self.log.warning("Image has no media URL")
+                await evt.reply("Could not locate the image media.")
+                return
+
+            # Download the original bytes from the Matrix media repository.
             image_bytes = await self.client.download_media(mxc_url)
 
             if not image_bytes:
-                self.log.warn("Downloaded image is empty")
+                self.log.warning("Downloaded image is empty")
+                await evt.reply("Could not download the image.")
                 return
-            
-            image_form = FormImage(raw_bytes=image_bytes, filename=filename, mime_type=mime_type)
-            
+
+            # Decrypt encrypted attachments and verify their ciphertext hash.
+            if encrypted_file:
+                try:
+                    image_bytes = decrypt_attachment(
+                        ciphertext=image_bytes,
+                        key=encrypted_file.key.key,
+                        hash=encrypted_file.hashes["sha256"],
+                        iv=encrypted_file.iv,
+                    )
+                except Exception:
+                    self.log.exception("Failed to decrypt Matrix image")
+                    await evt.reply(
+                        "Could not decrypt the image. "
+                        "The media may be corrupted or unsupported."
+                    )
+                    return
+
+            image_form = FormImage(
+                raw_bytes=image_bytes,
+                filename=filename,
+                mime_type=mime_type,
+            )
+
             response = await backend.create_image_edit(self.http, prompt, image_form, model)
 
             if not response.error and response.data:
