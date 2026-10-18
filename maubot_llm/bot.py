@@ -545,22 +545,23 @@ class LlmBot(Plugin):
     async def handle_image_caption(self, evt: MessageEvent) -> None:
         # Only handle image messages here; text commands are handled above.
         if evt.content.msgtype != MessageType.IMAGE:
-            self.log.warn("BOT: Message wasn't an image")
+            self.log.warn("MAUBOT: Message wasn't an image")
             return
 
         body = evt.content.get("body", "")
         filename = getattr(evt.content, "filename", "")
+        subcommand = "alter"
 
         cmd_name = self.get_command_name()
         # Ignore ordinary image uploads without a command caption.
         if not body.startswith(f"!{cmd_name}"):
-            self.log.warn(f"BOT: Body {body} didn't start with !{cmd_name}")
+            self.log.warn(f"MAUBOT: Body {body} didn't start with !{cmd_name}")
             return
 
         # If filename equals body, Matrix defines body as the filename,
         # rather than a media caption.
         if filename and filename == body:
-            self.log.warn(f"BOT: Filename {filename} equalled body {body}")
+            self.log.warn(f"MAUBOT: Filename {filename} equalled body {body}")
             return
 
         self.log.info("Received image caption: %s", body)
@@ -571,14 +572,15 @@ class LlmBot(Plugin):
             await evt.reply("Could not parse the image caption.")
             return
 
-        # Expected: !<command name> testsub <subarg>
-        if len(parts) >= 3 and parts[1] == "testsub":
-            await self.run_testsub(evt, parts[2])
+        # Expected: !<command name> alter <any_text>
+        if len(parts) >= 3 and parts[1] == "alter":
+            #await self.run_testsub(evt, " ".join(parts[2:]))
+            await self.alter(evt, " ".join(parts[2:]))
         elif len(parts) == 1:
-            await evt.reply(f"Image received with caption: !{self.get_command_name}")
+            await evt.reply(f"Image received with caption: !{cmd_name}")
         else:
             await evt.reply(
-                f"Usage: !{self.get_command_name} testsub <subarg>"
+                f"Usage: !{cmd_name} alter <subarg>"
             )
     
     @classmethod
