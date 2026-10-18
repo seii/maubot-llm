@@ -548,10 +548,10 @@ class LlmBot(Plugin):
             self.log.warn("BOT: Message wasn't an image")
             return
 
-        body = evt.content.body
+        body = evt.content.get("body", "")
         filename = getattr(evt.content, "filename", "")
 
-        cmd_name = self.get_command_name
+        cmd_name = self.get_command_name()
         # Ignore ordinary image uploads without a command caption.
         if not body.startswith(f"!{cmd_name}"):
             self.log.warn(f"BOT: Body {body} didn't start with !{cmd_name}")
