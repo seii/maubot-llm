@@ -328,6 +328,7 @@ class BasicOpenAIBackend(Backend):
                     result = b64_imgs[0]["b64_json"] if b64_imgs else ""
 
                     model = respbody.get("model", None)
+                    format = respbody.get("output_format", "")
                 else:
                     error = await resp.text()
             # Returns the entire `data` entry because it may contain multiple images
