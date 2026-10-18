@@ -102,7 +102,7 @@ The default backend used by the plugin in any room until changed for that room. 
 ### local
 Represents any OpenAI-compatible server
 
-All fields except `type` and `base_url` are optional. `base_url` is passed directly, the only processing done is a check to see whether the OpenAI-compatible endpoints are available at `<base_url>/v1/` (example: llama.cpp) or just `<base_url>/`.
+All fields except `type` and `base_url` are optional. `base_url` is used directly in API calls to the backend, so if you're a llama.cpp or stable-diffusion.cpp user you will want to add `/v1` to the end of this value.
 
 ```
 local:

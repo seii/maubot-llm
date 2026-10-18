@@ -1,5 +1,5 @@
 from typing import List, Optional
-from aiohttp import ClientSession
+from aiohttp import ClientSession, FormData
 from maubot_llm._backends import (
     Models,
     Completions,
@@ -9,6 +9,19 @@ from maubot_llm._backends import (
     CreateImageGenerations,
     CreateImageEdit
 )
+
+
+class FormImage:
+    def __init__(self, raw_bytes: bytes, filename: str, mime_type: str) -> None:
+        self.raw_bytes = raw_bytes
+        self.filename = filename
+        self.mime_type = mime_type
+    
+    def __eq__(self, other) -> bool:
+        return (self.raw_bytes == other.raw_bytes and
+                self.filename == other.filename and
+                self.mime_type == other.mime_type
+                )
 
 
 class Backend:
@@ -35,7 +48,7 @@ class Backend:
     async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: int, model: Optional[str] = None) -> CreateImageGenerations:
         raise NotImplementedError()
     
-    async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> CreateImageEdit:
+    async def create_image_edit(self, http: ClientSession, prompt: str, image: FormImage, model: Optional[str] = None) -> CreateImageEdit:
         raise NotImplementedError()
 
 
@@ -51,7 +64,7 @@ class BasicOpenAIBackend(Backend):
             self.authorization = ""
     
     async def fetch_models(self, http: ClientSession) -> Models:
-        url = f"{self.base_url}/v1/models"
+        url = f"{self.base_url}/models"
         headers = {}
         if self.authorization:
             headers["Authorization"] = self.authorization
@@ -79,7 +92,7 @@ class BasicOpenAIBackend(Backend):
             )
 
     async def create_completion(self, http: ClientSession, prompt: str, max_tokens: int, model: Optional[str] = None) -> Completions:
-        url = f"{self.base_url}/v1/completions"
+        url = f"{self.base_url}/completions"
         reqbody = {"prompt": prompt}
         if model is not None:
             reqbody["model"] = model
@@ -117,7 +130,7 @@ class BasicOpenAIBackend(Backend):
 
     # TODO Multi-modal input
     async def create_chat_completion(self, http: ClientSession, context: List[dict], system: Optional[str] = "", model: Optional[str] = "") -> ChatCompletion:
-        url = f"{self.base_url}/v1/chat/completions"
+        url = f"{self.base_url}/chat/completions"
         reqbody = {"messages": context}
         if system:
             reqbody["messages"].insert(0, {"role": "system", "content": system})
@@ -154,7 +167,7 @@ class BasicOpenAIBackend(Backend):
     #   Llama.cpp also apparently just [converts](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#post-v1responses-openai-compatible-responses-api)
     #   `/responses` back to `/chat/completions` transparently for now
     async def create_response(self, http: ClientSession, context: List[dict], model: Optional[str] = None) -> Responses:
-        url = f"{self.base_url}/v1/responses"
+        url = f"{self.base_url}/responses"
         reqbody = {"input": context}
         if model is not None:
             reqbody["model"] = model
@@ -190,7 +203,7 @@ class BasicOpenAIBackend(Backend):
             )
  
     async def get_response_input_tokens(self, http: ClientSession, input: str, model: Optional[str] = None) -> ResponsesInputTokens:
-        url = f"{self.base_url}/v1/responses/input_tokens"
+        url = f"{self.base_url}/responses/input_tokens"
         reqbody = {"input": input}
         if model is not None:
             reqbody["model"] = model
@@ -216,7 +229,7 @@ class BasicOpenAIBackend(Backend):
             )
 
     async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: int, model: Optional[str] = None) -> CreateImageGenerations:
-        url = f"{self.img_base_url}/v1/images/generations"
+        url = f"{self.img_base_url}/images/generations"
         reqbody = {
             "prompt": prompt,
             "n": n,
@@ -267,15 +280,20 @@ class BasicOpenAIBackend(Backend):
                 error=error
                 )
 
-    async def create_image_edit(self, http: ClientSession, prompt: str, image: str, mask: Optional[str] = None, model: Optional[str] = None) -> CreateImageEdit:
-        url = f"{self.img_base_url}/v1/images/edits"
+    async def create_image_edit(self, http: ClientSession, prompt: str, image: FormImage, model: Optional[str] = None) -> CreateImageEdit:
+        url = f"{self.img_base_url}/images/edits"
+        
         # For multipart/form-data requests, we'll need to use aiohttp's FormData
-        from aiohttp import FormData
         form = FormData()
         form.add_field("prompt", prompt)
-        form.add_field("image", image)
-        if mask is not None:
-            form.add_field("mask", mask)
+        form.add_field(
+            "image[]",
+            image.raw_bytes,
+            filename=image.filename,
+            content_type=image.mime_type,
+        )
+        form.add_field("n", "1")
+        form.add_field("output_format", f"{image.filename[image.filename.find(".")+1:].split()[0]}")
         # Optional because Stable Diffusion can't currently specify a model on request
         if model is not None:
             form.add_field("model", model)
@@ -288,6 +306,7 @@ class BasicOpenAIBackend(Backend):
             # Any errors should populate `error` with the response's body
             error = None
             result = ""
+            format = ""
             if not resp.ok:
                 error = await resp.text()
             else:
@@ -311,6 +330,7 @@ class BasicOpenAIBackend(Backend):
             # Returns the entire `data` entry because it may contain multiple images
             return CreateImageEdit(
                 data=result,
+                output_format=format,
                 status=status,
                 model=respbody.get("model", None),
                 error=error
