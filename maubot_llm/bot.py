@@ -1,4 +1,5 @@
 import base64
+import shlex
 
 from maubot import Plugin
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
@@ -21,6 +22,7 @@ from maubot_llm.backends import (
     AnthropicBackend)
 from maubot_llm import db
 from mautrix.util.async_db import UpgradeTable
+from mautrix.crypto.attachments import decrypt_attachment
 
 
 class Config(BaseProxyConfig):
@@ -96,7 +98,7 @@ class LlmBot(Plugin):
             return AnthropicBackend(cfg)
         raise ValueError(f"unknown backend type {cfg['type']}")
 
-    @command.new(name=get_command_name, msgtypes=(MessageType.TEXT, MessageType.IMAGE), require_subcommand=True)
+    @command.new(name=get_command_name, require_subcommand=True)
     async def llm_command(self, evt: MessageEvent) -> None:
         pass
 
@@ -273,7 +275,6 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
-    #@event.on(EventType.ROOM_MESSAGE)
     # TODO Multi-modal input
     @command.argument("prompt", pass_raw=True)
     @llm_command.subcommand(help="Ask the LLM to start or continue the current room's chat")
@@ -348,7 +349,6 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
-    #@event.on(EventType.ROOM_MESSAGE)
     @command.argument("prompt", pass_raw=True)
     @command.argument("output_format")
     @command.argument("size")
@@ -432,8 +432,11 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
-    @command.argument("prompt", pass_raw=True)
-    @llm_command.subcommand(help="Ask the LLM to generate an altered picture based on the image and prompt the user provides")
+    # Maubot's subcommands don't appear to work with images, even when
+    #   the top-level command's `msgtypes` is edited to properly monitor
+    #   image posts. This method and the next are workarounds.
+    #@command.argument("prompt", pass_raw=True)
+    #@llm_command.subcommand(help="Ask the LLM to generate an altered picture based on the image and prompt the user provides")
     async def alter(self, evt: MessageEvent, prompt: str) -> None:
         if not self.is_allowed(evt.sender):
             self.log.warn(f"stranger danger: sender={evt.sender}")
@@ -441,7 +444,7 @@ class LlmBot(Plugin):
         if not prompt or prompt.startswith("!"):
             self.log.warn("No prompt provided by user")
             return
-        if not evt.content or evt.content["msgtype"] != "m.image":
+        if not evt.content:
             self.log.warn("Failed to parse: message does not contain an image")
             return
         # Matrix media captions use body as the caption when filename
@@ -464,39 +467,68 @@ class LlmBot(Plugin):
             backend = self.get_backend(room)
             model = room.model or backend.default_model
 
-            # Normal, unencrypted Matrix images use "url" with an MXC URI.
-            #   Encrypted media uses "file" and needs decryption first.
-            mxc_url = evt.content.get("url")
-            if not mxc_url:
-                await evt.reply("Please send an unencrypted image with a caption.")
-                return
-            
-            mime_type = evt.content["info"].get("mimetype", "")
-            filename=""
+            info = evt.content.info
+            mime_type = getattr(info, "mimetype", None) or ""
 
-            # Restrict the accepted image formats.
+            # Restrict accepted image formats.
             mime_extensions = {
                 "image/png": ".png",
                 "image/jpeg": ".jpg",
                 "image/webp": ".webp",
             }
-            extension = mime_extensions.get(mime_type, "")
+            extension = mime_extensions.get(mime_type)
             if not extension:
                 await evt.reply("Please send a PNG, JPEG, or WebP image.")
                 return
-            
-            filename=f"input{extension}"
 
-            # Download the original image bytes from the Matrix media
-            # repository, not the thumbnail.
+            filename = f"input{extension}"
+
+            # Normal, unencrypted Matrix images use "url" with an MXC URI.
+            #   Encrypted media uses "file" and needs decryption first.
+            #   Check to see which we're dealing with
+            encrypted_file = getattr(evt.content, "file", None)
+
+            if encrypted_file:
+                mxc_url = encrypted_file.url
+            else:
+                mxc_url = getattr(evt.content, "url", None)
+
+            if not mxc_url:
+                self.log.warning("Image has no media URL")
+                await evt.reply("No image found in post")
+                return
+
+            # Download the original bytes from the Matrix media repository.
             image_bytes = await self.client.download_media(mxc_url)
 
             if not image_bytes:
-                self.log.warn("Downloaded image is empty")
+                self.log.warning("Downloaded image is empty")
+                await evt.reply("Unable to download image")
                 return
-            
-            image_form = FormImage(raw_bytes=image_bytes, filename=filename, mime_type=mime_type)
-            
+
+            # Decrypt encrypted attachments and verify their ciphertext hash.
+            if encrypted_file:
+                try:
+                    image_bytes = decrypt_attachment(
+                        ciphertext=image_bytes,
+                        key=encrypted_file.key.key,
+                        hash=encrypted_file.hashes["sha256"],
+                        iv=encrypted_file.iv,
+                    )
+                except Exception:
+                    self.log.exception("Failed to decrypt Matrix image")
+                    await evt.reply(
+                        "Could not decrypt the image. "
+                        "The media may be corrupted or unsupported."
+                    )
+                    return
+
+            image_form = FormImage(
+                raw_bytes=image_bytes,
+                filename=filename,
+                mime_type=mime_type,
+            )
+
             response = await backend.create_image_edit(self.http, prompt, image_form, model)
 
             if not response.error and response.data:
@@ -504,6 +536,7 @@ class LlmBot(Plugin):
                     response.data, validate=True
                 )
 
+                # Decode the Base64 returned from the LLM back into an image
                 if not output_bytes:
                     self.log.warn("Failed to decode Base64 image")
                     return
@@ -542,6 +575,50 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
+    @event.on(EventType.ROOM_MESSAGE)
+    async def handle_image_caption(self, evt: MessageEvent) -> None:
+        # Only handle image messages here; text commands are handled above.
+        if evt.content.msgtype != MessageType.IMAGE:
+            # Only needed for troubleshooting
+            #self.log.warn("MAUBOT: Message wasn't an image")
+            return
+
+        body = evt.content.get("body", "")
+        filename = getattr(evt.content, "filename", "")
+        subcommand = "alter"
+
+        cmd_name = self.get_command_name()
+        # Ignore ordinary image uploads without a command caption.
+        if not body.startswith(f"!{cmd_name}"):
+            # Only needed for troubleshooting
+            #self.log.warn(f"MAUBOT: Body {body} didn't start with !{cmd_name}")
+            return
+
+        # If filename equals body, Matrix defines body as the filename,
+        # rather than a media caption.
+        if filename and filename == body:
+            # Only needed for troubleshooting
+            #self.log.warn(f"MAUBOT: Filename {filename} equalled body {body}")
+            return
+
+        # Only needed for troubleshooting
+        #self.log.info("MAUBOT: Received image caption: %s", body)
+
+        try:
+            parts = shlex.split(body)
+        except ValueError:
+            self.log.warn("Unable to parse image caption")
+            await evt.reply("Could not parse the image caption.")
+            return
+
+        # Expected: !<command name> <subcommand> <any_text>
+        if len(parts) >= 3 and parts[1] == subcommand:
+            await self.alter(evt, " ".join(parts[2:]))
+        else:
+            await evt.reply(
+                f"Usage: !{cmd_name} {subcommand} <prompt text>"
+            )
+    
     @classmethod
     def get_db_upgrade_table(cls) -> UpgradeTable | None:
         return db.upgrade_table
