@@ -432,6 +432,9 @@ class LlmBot(Plugin):
         finally:
             await self.client.set_typing(evt.room_id, 0)
 
+    # Maubot's subcommands don't appear to work with images, even when
+    #   the top-level command's `msgtypes` is edited to properly monitor
+    #   image posts. This method and the next are workarounds.
     #@command.argument("prompt", pass_raw=True)
     #@llm_command.subcommand(help="Ask the LLM to generate an altered picture based on the image and prompt the user provides")
     async def alter(self, evt: MessageEvent, prompt: str) -> None:
@@ -441,12 +444,9 @@ class LlmBot(Plugin):
         if not prompt or prompt.startswith("!"):
             self.log.warn("No prompt provided by user")
             return
-        #if not evt.content or evt.content["msgtype"] != "m.image":
         if not evt.content:
             self.log.warn("Failed to parse: message does not contain an image")
             return
-        else:
-            self.log.warn(f"evt.content detected was: {evt.content.get("msgtype", '(Not detected)')}")
         # Matrix media captions use body as the caption when filename
         #   is present and differs from body. Clients vary on how well
         #   (or if at all) they support media captions.
@@ -495,7 +495,7 @@ class LlmBot(Plugin):
 
             if not mxc_url:
                 self.log.warning("Image has no media URL")
-                await evt.reply("Could not locate the image media.")
+                await evt.reply("No image found in post")
                 return
 
             # Download the original bytes from the Matrix media repository.
@@ -503,7 +503,7 @@ class LlmBot(Plugin):
 
             if not image_bytes:
                 self.log.warning("Downloaded image is empty")
-                await evt.reply("Could not download the image.")
+                await evt.reply("Unable to download image")
                 return
 
             # Decrypt encrypted attachments and verify their ciphertext hash.
@@ -536,6 +536,7 @@ class LlmBot(Plugin):
                     response.data, validate=True
                 )
 
+                # Decode the Base64 returned from the LLM back into an image
                 if not output_bytes:
                     self.log.warn("Failed to decode Base64 image")
                     return
@@ -570,7 +571,6 @@ class LlmBot(Plugin):
             else:
                 await evt.react(self.get_error_emoji())
                 self.log.warn(response.status)
-                self.log.warn(f"format: {response.output_format}")
                 self.log.warn(response.error)
         finally:
             await self.client.set_typing(evt.room_id, 0)
@@ -579,7 +579,8 @@ class LlmBot(Plugin):
     async def handle_image_caption(self, evt: MessageEvent) -> None:
         # Only handle image messages here; text commands are handled above.
         if evt.content.msgtype != MessageType.IMAGE:
-            self.log.warn("MAUBOT: Message wasn't an image")
+            # Only needed for troubleshooting
+            #self.log.warn("MAUBOT: Message wasn't an image")
             return
 
         body = evt.content.get("body", "")
@@ -589,32 +590,33 @@ class LlmBot(Plugin):
         cmd_name = self.get_command_name()
         # Ignore ordinary image uploads without a command caption.
         if not body.startswith(f"!{cmd_name}"):
-            self.log.warn(f"MAUBOT: Body {body} didn't start with !{cmd_name}")
+            # Only needed for troubleshooting
+            #self.log.warn(f"MAUBOT: Body {body} didn't start with !{cmd_name}")
             return
 
         # If filename equals body, Matrix defines body as the filename,
         # rather than a media caption.
         if filename and filename == body:
-            self.log.warn(f"MAUBOT: Filename {filename} equalled body {body}")
+            # Only needed for troubleshooting
+            #self.log.warn(f"MAUBOT: Filename {filename} equalled body {body}")
             return
 
-        self.log.info("Received image caption: %s", body)
+        # Only needed for troubleshooting
+        #self.log.info("MAUBOT: Received image caption: %s", body)
 
         try:
             parts = shlex.split(body)
         except ValueError:
+            self.log.warn("Unable to parse image caption")
             await evt.reply("Could not parse the image caption.")
             return
 
-        # Expected: !<command name> alter <any_text>
-        if len(parts) >= 3 and parts[1] == "alter":
-            #await self.run_testsub(evt, " ".join(parts[2:]))
+        # Expected: !<command name> <subcommand> <any_text>
+        if len(parts) >= 3 and parts[1] == subcommand:
             await self.alter(evt, " ".join(parts[2:]))
-        elif len(parts) == 1:
-            await evt.reply(f"Image received with caption: !{cmd_name}")
         else:
             await evt.reply(
-                f"Usage: !{cmd_name} alter <subarg>"
+                f"Usage: !{cmd_name} {subcommand} <prompt text>"
             )
     
     @classmethod

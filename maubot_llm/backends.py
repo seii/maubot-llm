@@ -162,9 +162,9 @@ class BasicOpenAIBackend(Backend):
                 error=error
             )
 
-    # `/responses` is apparently the new OpenAI-recommended standard since
+    # `/responses` is the new OpenAI-recommended standard for chat interfaces since
     #   [March 2025](https://openai.com/index/new-tools-for-building-agents/)
-    #   Llama.cpp also apparently just [converts](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#post-v1responses-openai-compatible-responses-api)
+    #   Llama.cpp also just [converts](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#post-v1responses-openai-compatible-responses-api)
     #   `/responses` back to `/chat/completions` transparently for now
     async def create_response(self, http: ClientSession, context: List[dict], model: Optional[str] = None) -> Responses:
         url = f"{self.base_url}/responses"
@@ -188,7 +188,7 @@ class BasicOpenAIBackend(Backend):
                 # Empty "output" field is valid, missing field is not
                 if respbody and respbody["output"]:
                     role = respbody["output"][0]["role"]
-                    # Llama.cpp does not support multiple completions per request
+                    # Llama.cpp does not support multiple responses per request
                     # TODO Multi-modal input
                     result = respbody["output"][0]["content"][0]["text"]
                 else:
@@ -266,7 +266,7 @@ class BasicOpenAIBackend(Backend):
                             b64_imgs.append(body)
 
                     # TODO Upload/return multiple images when supported
-                    # `b64_imgs` may now hold multiple images, but Matrix does not currently
+                    # `b64_imgs` may hold multiple images, but Matrix does not currently
                     #   support posting multiple images at once so only the first returned
                     #   image will be sent
                     result = b64_imgs[0]["b64_json"] if b64_imgs else ""
@@ -293,7 +293,10 @@ class BasicOpenAIBackend(Backend):
             content_type=image.mime_type,
         )
         form.add_field("n", "1")
-        form.add_field("output_format", f"{image.mime_type[image.mime_type.find("/")+1:].split()[0]}")
+        form.add_field(
+            "output_format",
+            f"{image.mime_type[image.mime_type.find("/")+1:].split()[0]}"
+            )
         # Optional because Stable Diffusion can't currently specify a model on request
         if model is not None:
             form.add_field("model", model)
@@ -331,7 +334,6 @@ class BasicOpenAIBackend(Backend):
                     format = respbody.get("output_format", "")
                 else:
                     error = await resp.text()
-            # Returns the entire `data` entry because it may contain multiple images
             return CreateImageEdit(
                 data=result,
                 output_format=format,
