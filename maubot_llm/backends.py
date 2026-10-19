@@ -86,8 +86,8 @@ class BasicOpenAIBackend(Backend):
                     error = await resp.text()
             return Models(
                 data=result,
-                object_=respbody["object_"] if respbody["object_"] else "list",
                 status=status,
+                object_=respbody["object"] if respbody["object"] else "list",
                 error=error
             )
 

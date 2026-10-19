@@ -115,7 +115,6 @@ class LlmBot(Plugin):
         context = await db.fetch_context(self.database, room.room_id)
         backend = self.get_backend(room)
         all_backends = ", ".join(self.config["backends"].keys())
-
         all_models = "<hidden>"
 
         # Only admins can view full list of available models
@@ -124,10 +123,12 @@ class LlmBot(Plugin):
                 result = await backend.fetch_models(self.http)
                 if not result.error and result.data:
                     all_models = ", ".join(result.data)
+                    self.log.warn(f"models: {all_models}")
                 else:
                     self.log.warn(result.status)
                     self.log.warn(result.error)
             except:
+                self.log.warn("Exception while attempting to fetch backend models")
                 pass
 
         items = []
@@ -141,14 +142,12 @@ class LlmBot(Plugin):
         items[-1] += f" (available: {all_models})"
 
         current_prompt = "- System Prompt: <hidden>"
-        if room.system_prompt:
-            if self.is_admin(evt.sender):
+        if self.is_admin(evt.sender):
+            if room.system_prompt:
                 current_prompt = f"- System Prompt: {room.system_prompt}"
-        elif backend.default_system_prompt:
-            if self.is_admin(evt.sender):
+            elif backend.default_system_prompt:
                 current_prompt = f"- System Prompt (backend default): {backend.default_system_prompt}"
-        else:
-            if self.is_admin(evt.sender):
+            else:
                 current_prompt = "- System Prompt not specified"
         items.append(current_prompt)
         items.append(f"- Context Message Count: {len(context)}")
