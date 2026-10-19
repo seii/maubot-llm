@@ -93,13 +93,13 @@ class BasicOpenAIBackend(Backend):
 
     async def create_completion(self, http: ClientSession, prompt: str, max_tokens: int, model: Optional[str] = None) -> Completions:
         url = f"{self.base_url}/completions"
-        reqbody = {"prompt": prompt}
+        reqbody: dict[str, str | int] = {"prompt": prompt}
         if model is not None:
             reqbody["model"] = model
         if max_tokens > 0:
-            reqbody["max_tokens"] = f"{max_tokens}"
+            reqbody["max_tokens"] = max_tokens
         else:
-            reqbody["max_tokens"] = "1"
+            reqbody["max_tokens"] = 1
 
         headers = {}
         if self.authorization:
@@ -209,7 +209,7 @@ class BasicOpenAIBackend(Backend):
  
     async def get_response_input_tokens(self, http: ClientSession, input: str, model: Optional[str] = None) -> ResponsesInputTokens:
         url = f"{self.base_url}/responses/input_tokens"
-        reqbody = {"input": input}
+        reqbody: dict[str, str] = {"input": input}
         if model is not None:
             reqbody["model"] = model
         headers = {}
@@ -235,7 +235,7 @@ class BasicOpenAIBackend(Backend):
 
     async def create_image_generation(self, http: ClientSession, prompt: str, n: int, size: str, output_format: str, output_compression: int, model: Optional[str] = None) -> CreateImageGenerations:
         url = f"{self.img_base_url}/images/generations"
-        reqbody = {
+        reqbody: dict[str, str | int] = {
             "prompt": prompt,
             "n": n,
             "size": size,
