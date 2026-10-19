@@ -10,23 +10,26 @@ This plugin primarily uses OpenAI-compatible endpoints, so the LLM must be suppl
 
 (Technically the Anthropic endpoint for Chat Completion only is available, but it's untested.)
 
-You should definitely limit access, see [Configuration](#configuration) for instructions.
+You should definitely limit access, see [Configuration](docs/CONFIGURATION.md) for instructions.
 
 # Installation
 
 - [Setup maubot](https://docs.mau.fi/maubot/usage/setup/index.html)
 - Clone this repo and [use `mbc build -u`](https://docs.mau.fi/maubot/usage/cli/build.html) to build the plugin
 - [Create a client and an instance](https://docs.mau.fi/maubot/usage/basic.html)
-- Update the configuration; see [Configuration](#configuration) and [base-config.yaml](base-config.yaml) for documentation of the available options
+- Update the configuration; see [Configuration](docs/CONFIGURATION.md) and [base-config.yaml](base-config.yaml) for documentation of the available options
 
 # Usage
 
-Once this plugin is added to a room, any user on the allowlist using the plugin's trigger will cause the bot to invoke the backend LLM and respond with whatever the LLM returns. Don't forget that DMing the bot directly also counts as "posting to a room".
+See [Commands](docs/COMMANDS.md) for a full reference of all commands.
 
-You can configure multiple backends.
-One of them should be designated as the default, but the bot tracks models and prompts on a per-room basis so each room can be different.
+Once this plugin is added to a room, any user on the allowlist can post to that room with the plugin's trigger (example: `!llm info`). Some commands are for admin or maintenance of the plugin, but most commands invoke a backend LLM and respond with whatever that LLM returns.
 
-You can also define a separate URL for image generation, to use Generative AI engines which have OpenAI-compatible endpoints such as [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) alongside more text-focused LLMs.
+Private messages to the bot that this plugin is part of counts as posting to a room, so triggers work there as well.
+
+You can configure one backend and one model per room. If you do not specify any using commands, rooms will use any backend or model defaults in the plugin configuration.
+
+You can also configure a separate URL for image generation. This feature is useful when you prefer Generative AI engines (with OpenAI-compatible endpoints) such as [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) to handle images instead of more generalized LLM models.
 
 # Limitations
 
@@ -37,18 +40,3 @@ The [Matrix Specification](https://spec.matrix.org/latest/client-server-api) doe
 - Image generation: Only one image is returned from the LLM
   - Affected by the `n` variable above, so in theory LLMs wouldn't send more than one anyway
 - Image edit: "Mask" or "partial" images aren't supported
-
-### Reactions
-_Optional field_
-This plugin will react to user tags with several kinds of emoji to indicate request status
-
-- `wait_reaction`: Indicates that some amount of processing is occurring
-- `error_reaction`: Indicates that some kind of underlying error occurred and can be viewed in Maubot's logs
-- `denied_reaction`: Indicates that the user is not allowed to execute this command (example: running `!<trigger> clear` as a non-admin user)
-- `done_reaction`: Indicates that the request succeeded in full
-
-When appropriate the plugin will also reply (the kind of message that shows your message above it) or respond (the default message in a chat room) with text or image results from the backend LLM.
-
-_Hint:_ A `wait_reaction` where nothing else happens is typically a code-level exception, which can also be viewed in Maubot's logs.
-
-**NOTE:** Technically you could put any text for each of these, but Matrix servers may react in unpredictable ways if the reaction succeeds at all. Stick to emojis, you'll be happier.
