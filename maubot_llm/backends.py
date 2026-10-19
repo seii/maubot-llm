@@ -110,21 +110,26 @@ class BasicOpenAIBackend(Backend):
             # Any errors should populate `error` with the response's body
             error = None
             result = ""
+            model=""
             if not resp.ok:
                 error = await resp.text()
             else:
                 respbody = await resp.json()
 
                 # Empty "choices" field is valid, missing field is not
-                if respbody and respbody["choices"]:
-                    # Llama.cpp does not support multiple completions per request
-                    result = respbody["choices"][0]["text"]
+                if respbody:
+                    if not respbody["choices"] or not respbody["model"]:
+                        error = resp.text()
+                    else:
+                        # Llama.cpp does not support multiple completions per request
+                        result = respbody["choices"][0]["text"]
+                        model = respbody["model"]
                 else:
                     error = await resp.text()
             return Completions(
                 data=result,
                 status=status,
-                model=respbody.get("model", None),
+                model=model,
                 error=error
             )
 
